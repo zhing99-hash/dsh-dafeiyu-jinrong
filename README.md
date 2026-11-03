@@ -17,6 +17,20 @@
 插件身份是独立的（包名 / 插件 id / 端点 / 设置命名空间都是 `dsh-dafeiyu-jinrong`），所以可以和上游
 `dsh-dafeiyu` 装同一个 profile，两只鱼互不干扰。
 
+**方式一：下载发布包（推荐）**
+
+从 [Releases](https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/releases/latest) 下载
+`dsh-dafeiyu-jinrong-<version>.tgz`（不用解压），完全退出 DSH Host 后：
+
+```powershell
+dsh plugin --profile web add "C:\Users\<you>\Downloads\dsh-dafeiyu-jinrong-0.2.0.tgz"
+```
+
+> 本 fork **不发布到 npm**，所以 `dsh-dafeiyu-jinrong@0.2.0` 这种写法解析不到包，必须给文件路径。
+> 官方桌面端用应用自带的 `dsh`：`<安装目录>\resources\runtime\cli\bin\dsh.cmd`。
+
+**方式二：自己打包**
+
 ```powershell
 # 1) 打包（不发布）
 pnpm pack --pack-destination .tmp
