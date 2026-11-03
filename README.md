@@ -12,6 +12,29 @@
 > 代码与原素材均为 MIT。上游的安装、打包与发布流程保持不变，本文只补充金融模式。
 > **行情只做情绪反馈：不推荐、不建议、不预测、不背书。所有内容不构成投资建议。**
 
+## 安装（和上游可以共存）
+
+插件身份是独立的（包名 / 插件 id / 端点 / 设置命名空间都是 `dsh-dafeiyu-jinrong`），所以可以和上游
+`dsh-dafeiyu` 装同一个 profile，两只鱼互不干扰。
+
+```powershell
+# 1) 打包（不发布）
+pnpm pack --pack-destination .tmp
+
+# 2) 装进某个 profile（完全退出该 profile 的 DSH Host 后执行）
+dsh plugin --profile web add ".tmp\dsh-dafeiyu-jinrong-0.2.0.tgz"
+
+# 3) 重启 DSH，设置页 → 行情情绪 → 启用
+```
+
+已实测的链路（独立 profile `jinrong-test`，2026-11-03）：
+
+1. `dsh plugin add` 安装成功；
+2. Host 启动，日志 `settings persistence (activation): namespace="dsh-dafeiyu-jinrong"`；
+3. Helper `ready after 4302ms`（原生窗口气泡出现）；
+4. 行情消息真的进了桌宠，`--event-log` 抓到：
+   `{"kind":"state","phase":"market","stage":"A股 · 平静","message":"就这样吧，喝口水","detail":"-0.83% · 茅台 +0.19% · 腾讯 +1.73%↑"}`
+
 ## 金融模式（新增）
 
 桌宠不再只跟随 DSH 任务，还可以跟着市场情绪走。
