@@ -5,7 +5,7 @@ const changelog = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf
 const section = changelog.split(/^## /m).find((entry) => entry.split(/\r?\n/)[0].split(' · ')[0] === version)
 if (!section) throw new Error(`CHANGELOG.md has no entry for ${version}`)
 
-const releases = 'https://github.com/QCYTSN/dsh-dafeiyu/releases'
+const releases = 'https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/releases'
 const archive = `${name}-${version}.tgz`
 const notice = version.includes('-')
   ? '> 这是预览版本。普通用户请安装[最新稳定版](' + releases + '/latest)。\n> This is a prerelease. For normal use, install the [latest stable version](' + releases + '/latest).'
