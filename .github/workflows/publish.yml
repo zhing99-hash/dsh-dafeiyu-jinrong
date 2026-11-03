@@ -1,19 +1,10 @@
-name: Publish package
+name: Release
 
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
-    inputs:
-      dist_tag:
-        description: npm distribution tag
-        required: true
-        default: alpha
-        type: choice
-        options:
-          - alpha
-          - latest
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -267,20 +258,19 @@ jobs:
           node scripts/test-packaged-helper.mjs --executable "$binary"
 
   publish:
-    name: Publish with npm trusted publishing
+    name: Publish GitHub Release
     needs:
       - assemble-package
       - verify-macos-package
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write
 
     steps:
       - name: Check out source
         uses: actions/checkout@v7
 
-      - name: Set up Node.js for npm OIDC
+      - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: "24"
@@ -299,7 +289,6 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref_name }}
-          REQUESTED_DIST_TAG: ${{ inputs.dist_tag }}
         run: |
           set -euo pipefail
 
@@ -317,41 +306,13 @@ jobs:
             exit 1
           fi
 
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            dist_tag="$REQUESTED_DIST_TAG"
-          elif [[ "$version" == *-* ]]; then
-            dist_tag="alpha"
-          else
-            dist_tag="latest"
-          fi
-
-          if [[ "$dist_tag" == "latest" && "$version" == *-* ]]; then
-            echo "A prerelease version cannot be published under the latest tag." >&2
-            exit 1
-          fi
-
-          local_integrity=$(node -e "const fs=require('fs');const crypto=require('crypto');const p=process.argv[1];console.log('sha512-'+crypto.createHash('sha512').update(fs.readFileSync(p)).digest('base64'))" "$archive")
-          remote_integrity=$(npm view "${package_name}@${version}" dist.integrity 2>/dev/null || true)
-
-          publish_needed=true
-          if [[ -n "$remote_integrity" ]]; then
-            if [[ "$remote_integrity" != "$local_integrity" ]]; then
-              echo "npm already contains ${package_name}@${version}, but its archive differs from this build." >&2
-              exit 1
-            fi
-            publish_needed=false
-            echo "The identical npm archive is already published; continuing with the GitHub Release step."
-          fi
-
           echo "package_name=$package_name" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
-          echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
-          echo "publish_needed=$publish_needed" >> "$GITHUB_OUTPUT"
 
-      - name: Publish package to npm
-        if: steps.release.outputs.publish_needed == 'true'
-        run: npm publish "./${{ steps.release.outputs.archive }}" --tag "${{ steps.release.outputs.dist_tag }}" --access public
+      # This fork publishes GitHub Release install packages only. Upstream's npm
+      # trusted-publishing flow is deliberately not carried over: the package
+      # name is different and there is no npm trusted publisher for this repo.
 
       - name: Create or update GitHub Release
         shell: bash
@@ -370,11 +331,11 @@ jobs:
             if [[ "$VERSION" == *-* ]]; then
               release_flags+=(--prerelease)
             fi
-            notes_file="$RUNNER_TEMP/dsh-dafeiyu-release-notes.md"
+            notes_file="$RUNNER_TEMP/dsh-dafeiyu-jinrong-release-notes.md"
             node scripts/release-notes.mjs > "$notes_file"
             gh release create "$release_tag" "$ARCHIVE" \
               --target "$GITHUB_SHA" \
-              --title "DSH BigFish ${release_tag}" \
+              --title "大肥鱼 · 金融版 ${release_tag}" \
               --notes-file "$notes_file" \
               --generate-notes \
               "${release_flags[@]}"

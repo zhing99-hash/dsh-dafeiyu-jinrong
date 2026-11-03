@@ -1,6 +1,28 @@
 # Changelog
 
-> This is release history. For installation, use the [latest stable release](https://github.com/QCYTSN/dsh-dafeiyu/releases/latest), not commands from older entries.
+> This is release history. For installation, use the [latest stable release](https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/releases/latest), not commands from older entries.
+> 上游历史见 [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)。
+
+## 0.2.0 · 2026-11-03
+
+### Added
+
+- 行情情绪：接入 A股 / 港股 / 美股（一个腾讯行情接口覆盖三个市场），
+  用涨跌幅、涨跌家数、振幅算出 0–100 的情绪分，投影成亢奋 / 乐观 / 平静 /
+  谨慎 / 恐慌 / 麻木六档，映射到桌宠已有的 7 个状态，**没有改动 Qt/Python Helper**。
+- 自选股与个股情绪：气泡第二行显示指数涨跌与自选股强弱（`↑` / `↓`）。
+- 价格提醒：高于 / 低于阈值，**穿越才触发**，同一只股票有冷却，多条同时命中合并成一条气泡。
+- 交易时段：A股 / 港股 / 美股各自的时段与午休，美股夏令时按 `America/New_York` 计算。
+- 状态仲裁：有 DSH 任务时任务优先，任务结束回到行情；价格提醒永远能弹出。
+- 设置页新增「行情情绪」分组；`scripts/market-preview.mjs` 与
+  `scripts/market-snapshot.mjs` 可以在不装插件的情况下打真实行情看效果。
+
+### Changed
+
+- 插件身份独立为 `dsh-dafeiyu-jinrong`（包名 / 插件 id / HTTP 端点 / 设置命名空间 /
+  slot key），可以与上游 `dsh-dafeiyu` 装在同一个 profile 里共存。
+- Helper 的临时解包目录可通过 `DSH_DAFEIYU_TMP` 指定，用于 profile temp 不可写的机器。
+- 发布只产出 GitHub Release 安装包，不再发布到 npm。
 
 ## 0.1.23 · 2026-10-29
 
