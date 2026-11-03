@@ -173,7 +173,14 @@ export function createMarketMonitor({
 
       const result = mood.update(score, at)
       const breadthText = breadth ? `上涨 ${breadth.up} / 下跌 ${breadth.down}` : ''
-      const detail = [snapshotText(cfg, quotes), breadthText].filter(Boolean).join(' · ')
+      // The bubble's detail row is a single elided line (~30 CJK characters at
+      // the default size). With a watchlist configured, the user's own names
+      // are the more useful half, so they replace the index level and the
+      // breadth counts — the mood score already reflects breadth.
+      const watchlistText = summarizeWatchlist(cfg, quotes, focusQuote, 2)
+      const detail = watchlistText
+        ? [formatPct(focusQuote?.pct), watchlistText].filter(Boolean).join(' · ')
+        : [snapshotText(cfg, quotes), breadthText].filter(Boolean).join(' · ')
 
       const events = alerts.update(quotes, at)
       if (events.length > 0) {
@@ -194,7 +201,7 @@ export function createMarketMonitor({
       if (result.changed || at - lastSentAt >= SEND_REFRESH_MS) {
         const band = result.mood
         lastSentAt = at
-        lastSnapshot = { at, score: result.score, mood: band.key, quotes, breadth }
+        lastSnapshot = { at, score: result.score, mood: band.key, quotes, breadth, watchlist: watchlistSnapshot(cfg, quotes, focusQuote) }
         send(stateMessage(band, cfg, quotes, { detail }))
       }
     } catch (error) {
@@ -246,26 +253,57 @@ export function createMarketMonitor({
       const cfg = config()
       const definition = MARKET_DEFS[cfg.focus]
       const focusQuote = quotes?.get(definition.indexCodes[0])
-      return cfg.watchlist.map((entry) => {
-        const code = normalizeCode(entry?.code)
-        const quote = code ? quotes?.get(code) : null
-        if (!quote) return { code, alias: entry?.alias ?? code, missing: true }
-        const relativePct = Number.isFinite(quote.pct) && Number.isFinite(focusQuote?.pct)
-          ? quote.pct - focusQuote.pct
-          : null
-        const moodOfStock = scoreStock({ pct: quote.pct, relativePct, volumeRatio: null })
-        return {
-          code,
-          alias: entry?.alias || quote.name,
-          price: quote.price,
-          pct: quote.pct,
-          level: moodOfStock.level,
-          above: Number(entry?.above) || null,
-          below: Number(entry?.below) || null,
-        }
-      })
+      return buildWatchlist(cfg, quotes, focusQuote)
     },
   }
+}
+
+function buildWatchlist(cfg, quotes, focusQuote) {
+  return cfg.watchlist.map((entry) => {
+    const code = normalizeCode(entry?.code)
+    const quote = code ? quotes?.get(code) : null
+    if (!quote) return { code, alias: String(entry?.alias ?? code ?? '').trim() || '—', missing: true }
+    const relativePct = Number.isFinite(quote.pct) && Number.isFinite(focusQuote?.pct)
+      ? quote.pct - focusQuote.pct
+      : null
+    const stockMood = scoreStock({ pct: quote.pct, relativePct, volumeRatio: null })
+    return {
+      code,
+      alias: String(entry?.alias ?? '').trim() || quote.name,
+      price: quote.price,
+      pct: quote.pct,
+      level: stockMood.level,
+      above: Number(entry?.above) || null,
+      below: Number(entry?.below) || null,
+    }
+  })
+}
+
+function arrowFor(level) {
+  if (level === 'strong') return '↑'
+  if (level === 'weak') return '↓'
+  // A dot would collide with the " · " separator between names.
+  return ''
+}
+
+/**
+ * One-line watchlist summary for the bubble's detail row ("茅台 +1.2%↑").
+ * The card is a two-line bubble owned by the Helper, so a compact line is the
+ * only shape that fits without patching the Qt side.
+ */
+function summarizeWatchlist(cfg, quotes, focusQuote, limit = 3) {
+  const rows = buildWatchlist(cfg, quotes, focusQuote).filter((row) => !row.missing)
+  if (rows.length === 0) return ''
+  const shown = rows
+    .slice(0, limit)
+    .map((row) => `${row.alias} ${formatPct(row.pct)}${arrowFor(row.level)}`)
+  // No "+N more" tail: the detail row is already elided, and a dangling count
+  // reads like a price.
+  return shown.join(' · ')
+}
+
+function watchlistSnapshot(cfg, quotes, focusQuote) {
+  return buildWatchlist(cfg, quotes, focusQuote)
 }
 
 function clampNumber(value, min, max, fallback) {

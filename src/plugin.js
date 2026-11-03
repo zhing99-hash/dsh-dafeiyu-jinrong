@@ -1,6 +1,7 @@
 import { createRequire } from 'node:module'
-import { readFileSync } from 'node:fs'
+import { readFileSync, mkdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
+import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import Schema from '@deepseek-ai/schemastery'
 import { CompanionReducer } from './companion-reducer.js'
@@ -446,9 +447,38 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     }
   }
 
-  const helperEnvironment = (resolved) => ({
-    ...helperConfig.env,
-    DSH_DAFEIYU_SCALE: String(resolved.scale ?? defaults.scale),
+  // PyInstaller's one-shot helper unpacks ~100 MB into %TEMP% before it can
+  // speak. Some Windows profiles reject that with "Could not create temporary
+  // directory", which looks like a crashed pet, so give the child its own
+  // writable directory. `DSH_DAFEIYU_TMP` overrides the location for machines
+  // where the default profile temp is unusable (we hit one: extraction works on
+  // a secondary NTFS volume but not under C:\AppData).
+  const helperRuntimeTemp = () => {
+    const override = process.env.DSH_DAFEIYU_TMP
+    if (override) {
+      try {
+        mkdirSync(override, { recursive: true })
+        return override
+      } catch {
+        return undefined
+      }
+    }
+    const base = process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local')
+    const directory = join(base, 'dsh-dafeiyu', 'tmp')
+    try {
+      mkdirSync(directory, { recursive: true })
+    } catch {
+      return undefined
+    }
+    return directory
+  }
+
+  const helperEnvironment = (resolved) => {
+    const temp = helperRuntimeTemp()
+    return {
+      ...helperConfig.env,
+      ...(temp ? { TMP: temp, TEMP: temp } : {}),
+      DSH_DAFEIYU_SCALE: String(resolved.scale ?? defaults.scale),
     DSH_DAFEIYU_BUBBLE_SCALE: String(resolved.bubbleScale ?? defaults.bubbleScale),
     DSH_DAFEIYU_ACTIVITY_LEVEL: String(resolved.activityLevel ?? defaults.activityLevel),
     DSH_DAFEIYU_REDUCED_MOTION: resolved.reducedMotion === true ? '1' : '0',
@@ -458,7 +488,8 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     DSH_DAFEIYU_BUBBLE_STATES: (Array.isArray(resolved.bubbleStates) ? resolved.bubbleStates : defaults.bubbleStates).join(','),
     DSH_DAFEIYU_WEBUI_URL: resolveClientTarget({ ...config, ...resolved }).url,
     DSH_DAFEIYU_OPEN_LABEL: resolveClientTarget({ ...config, ...resolved }).label,
-  })
+    }
+  }
 
   const applyLiveSettings = (next) => {
     if (!bridge || !reducer) return
