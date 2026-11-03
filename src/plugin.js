@@ -78,6 +78,7 @@ export const Config = Schema.object({
   marketPollSeconds: Schema.number().min(3).max(60).step(1).default(5).description('盘中轮询间隔（秒）'),
   marketAlertCooldown: Schema.number().min(60).max(3600).step(30).default(300).description('同一价格提醒的冷却时间（秒）'),
   marketYieldToTask: Schema.boolean().default(true).description('有 DSH 任务进行时让位于任务状态'),
+  marketTushareToken: Schema.string().default('').description('Tushare token（可选）：补齐自选股的历史成交量，用来算量比'),
 }).description('由 DeepSeek Harness 状态驱动的桌面大肥鱼伴侣')
 
 // Mark fields, rather than the root object: current DSH passes each volatile
@@ -105,6 +106,7 @@ const defaults = Object.freeze({
   marketPollSeconds: 5,
   marketAlertCooldown: 300,
   marketYieldToTask: true,
+  marketTushareToken: '',
 })
 
 const SOUND_STATES = new Set(['SUCCESS', 'ERROR', 'APPROVAL'])
@@ -136,6 +138,7 @@ function publicConfig(config = {}) {
     marketPollSeconds: config.marketPollSeconds ?? defaults.marketPollSeconds,
     marketAlertCooldown: config.marketAlertCooldown ?? defaults.marketAlertCooldown,
     marketYieldToTask: config.marketYieldToTask !== false,
+    marketTushareToken: String(config.marketTushareToken ?? defaults.marketTushareToken),
   }
 }
 
@@ -537,6 +540,11 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     bridge = new HelperProcess({
       ...helperConfig,
       env: helperEnvironment(resolved),
+      // Tab on the pet advances 总盘 → 自选1 → 自选2 → …; the host owns the
+      // list, so the Helper only reports the key press.
+      onCycle: (reply) => {
+        marketMonitor?.cycleView({ back: reply?.back === true })
+      },
       onSettingsChange: (report) => {
         if (typeof settings.update !== 'function') return
         const patch = {}

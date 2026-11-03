@@ -3,6 +3,23 @@
 > This is release history. For installation, use the [latest stable release](https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/releases/latest), not commands from older entries.
 > 上游历史见 [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)。
 
+## 0.3.0 · 2026-11-03
+
+### Added
+
+- 设置页「养鱼」模块：自选股、价格上限/下限、Tushare token 集中在一处配置。
+- Tab 切换视角：点一下桌宠让它取得焦点，按 Tab 在
+  「总盘（沪深两市）→ 自选股 1 → 自选股 2 → …」之间循环，Shift+Tab 反向。
+  切换后立刻重绘气泡，不等下一次轮询。
+- 自选股视角的气泡：名称、强弱、现价、涨跌幅、量比（需 Tushare token），
+  以及上限/下限是否已被突破。
+- Tushare 接入（可选）：填 token 后用 `daily` 接口取 A 股日线，算出真实量比
+  参与个股情绪打分；不填、填错或积分不足都只影响量比，行情与提醒照常。
+
+### Changed
+
+- 设置页分组由「行情情绪」改名为「养鱼」，说明里写清 Tab 的用法。
+
 ## 0.2.0 · 2026-11-03
 
 ### Added

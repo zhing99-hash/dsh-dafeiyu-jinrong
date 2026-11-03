@@ -420,6 +420,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 | Qt.WindowType.Tool
             )
             self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            # Needed for the Tab view switch (see keyPressEvent).
+            self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             self._apply_window_size()
             QTimer.singleShot(0, self._restore_visible_position)
 
@@ -1113,10 +1115,24 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
 
         def mousePressEvent(self, event: QMouseEvent) -> None:
             if event.button() == Qt.MouseButton.LeftButton:
+                # Tab cycles the bubble view, so the window has to be able to
+                # take keyboard focus; clicking the pet is the natural moment.
+                self.activateWindow()
+                self.setFocus(Qt.FocusReason.MouseFocusReason)
                 self._apply_glove(True)
                 self.drag_origin = event.globalPosition().toPoint()
                 self.pet_origin = QPoint(self.pet_x, self.pet_y)
                 self.dragging = False
+
+        def keyPressEvent(self, event: Any) -> None:
+            if event.key() == Qt.Key.Key_Tab:
+                # The host owns the view list (总盘 + 自选股); the window only
+                # reports the key press. Shift+Tab walks backwards.
+                back = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+                emit_reply("cycle", back=back)
+                event.accept()
+                return
+            super().keyPressEvent(event)
 
         def mouseMoveEvent(self, event: QMouseEvent) -> None:
             if self.drag_origin is not None and self.pet_origin is not None:
