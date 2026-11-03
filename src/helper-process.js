@@ -707,6 +707,12 @@ export class HelperProcess {
         this.options.onSettingsChange?.(reply)
         return
       }
+      if (reply?.protocolVersion === 1 && reply.kind === CompanionMessageKind.CYCLE) {
+        // Tab on the pet window: the host owns the view list, the Helper only
+        // reports the key press.
+        this.options.onCycle?.(reply)
+        return
+      }
     } catch {
       // Non-protocol stdout is still useful in development logs.
     }

@@ -27,3 +27,4 @@
         marketPollSeconds: 5
         marketAlertCooldown: 300
         marketYieldToTask: true
+        marketTushareToken: ''

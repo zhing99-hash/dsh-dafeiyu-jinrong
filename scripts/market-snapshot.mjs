@@ -1,6 +1,9 @@
 // Render one live market bubble to a PNG, without DSH.
 //
-//   node scripts/market-snapshot.mjs [a|hk|us] [out.png]
+//   node scripts/market-snapshot.mjs [a|hk|us] [--view N] [out.png]
+//
+// `--view N` cycles the bubble N times first (1 = first watchlist name), which
+// is the same path the Tab key takes.
 //
 // Spawns the packaged Qt Helper exactly the way the plugin does, feeds it the
 // message the market monitor produced, and lets the Helper save a snapshot.
@@ -15,7 +18,13 @@ import { createMarketMonitor } from '../src/market/index.js'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const focus = ['a', 'hk', 'us'].includes(process.argv[2]) ? process.argv[2] : 'a'
-const out = resolve(process.argv[3] ?? join(projectRoot, '.build', `market-${focus}.png`))
+const viewFlag = process.argv.indexOf('--view')
+const viewSteps = viewFlag > 0 ? Math.max(0, Number(process.argv[viewFlag + 1]) || 0) : 0
+const outArg = process.argv.slice(2).find((argument, index, list) => {
+  if (!argument.endsWith('.png')) return false
+  return list[index - 1] !== '--view'
+})
+const out = resolve(outArg ?? join(projectRoot, '.build', `market-${focus}${viewSteps ? `-v${viewSteps}` : ''}.png`))
 const executable = join(projectRoot, 'runtime', 'bin', 'win32-x64', 'dsh-dafeiyu-helper.exe')
 const timeoutMs = 20_000
 
@@ -43,9 +52,11 @@ const monitor = createMarketMonitor({
 
 monitor.start()
 await monitor.tickNow()
+for (let step = 0; step < viewSteps; step += 1) monitor.cycleView()
 monitor.stop()
 
-const stateMessage = messages.find((message) => message.__alert !== true) ?? messages[0]
+// With --view the interesting message is the last one, not the market view.
+const stateMessage = [...messages].reverse().find((message) => message.__alert !== true) ?? messages[0]
 if (!stateMessage) {
   console.error('no market message: feed returned nothing (closed market?)')
   process.exit(1)

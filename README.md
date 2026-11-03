@@ -23,10 +23,10 @@
 `dsh-dafeiyu-jinrong-<version>.tgz`（不用解压），完全退出 DSH Host 后：
 
 ```powershell
-dsh plugin --profile web add "C:\Users\<you>\Downloads\dsh-dafeiyu-jinrong-0.2.0.tgz"
+dsh plugin --profile web add "C:\Users\<you>\Downloads\dsh-dafeiyu-jinrong-0.3.0.tgz"
 ```
 
-> 本 fork **不发布到 npm**，所以 `dsh-dafeiyu-jinrong@0.2.0` 这种写法解析不到包，必须给文件路径。
+> 本 fork **不发布到 npm**，所以 `dsh-dafeiyu-jinrong@0.3.0` 这种写法解析不到包，必须给文件路径。
 > 官方桌面端用应用自带的 `dsh`：`<安装目录>\resources\runtime\cli\bin\dsh.cmd`。
 
 **方式二：自己打包**
@@ -36,7 +36,7 @@ dsh plugin --profile web add "C:\Users\<you>\Downloads\dsh-dafeiyu-jinrong-0.2.0
 pnpm pack --pack-destination .tmp
 
 # 2) 装进某个 profile（完全退出该 profile 的 DSH Host 后执行）
-dsh plugin --profile web add ".tmp\dsh-dafeiyu-jinrong-0.2.0.tgz"
+dsh plugin --profile web add ".tmp\dsh-dafeiyu-jinrong-0.3.0.tgz"
 
 # 3) 重启 DSH，设置页 → 行情情绪 → 启用
 ```
@@ -49,7 +49,7 @@ dsh plugin --profile web add ".tmp\dsh-dafeiyu-jinrong-0.2.0.tgz"
 4. 行情消息真的进了桌宠，`--event-log` 抓到：
    `{"kind":"state","phase":"market","stage":"A股 · 平静","message":"就这样吧，喝口水","detail":"-0.83% · 茅台 +0.19% · 腾讯 +1.73%↑"}`
 
-## 金融模式（新增）
+## 养鱼模式（新增）
 
 桌宠不再只跟随 DSH 任务，还可以跟着市场情绪走。
 
@@ -59,16 +59,19 @@ dsh plugin --profile web add ".tmp\dsh-dafeiyu-jinrong-0.2.0.tgz"
 | 六档情绪 | 亢奋 / 乐观 / 平静 / 谨慎 / 恐慌 / 麻木，映射到宠物已有的 7 个状态，**不需要改 Qt/Python Helper** |
 | 自选股 | 每只股票显示涨跌与强弱，可以设"高于多少 / 低于多少"提醒 |
 | 价格提醒 | 阈值穿越才触发（不是站在线上就反复弹），同一只股票有冷却时间，多条同时触发会合并成一条气泡 |
+| **Tab 切换视角** | 点一下桌宠取得焦点，Tab 在「总盘（沪深两市）→ 自选股 1 → 自选股 2 → …」循环，Shift+Tab 反向 |
+| **Tushare（可选）** | 填 token 后用它取 A 股日线，算出真实量比参与个股情绪；不填/填错只影响量比，行情与提醒照常 |
 | 状态仲裁 | 有 DSH 任务时任务优先，任务结束自动回到行情；提醒永远能弹出来 |
 | 交易时段 | A股/港股/美股各自的时段与午休，美股夏令时用 `Intl` 按纽约时区算，不手写规则 |
 
-**开启方式**：设置页 → 行情情绪 → 勾选"启用行情情绪"，选主市场，加自选股。
+**开启方式**：设置页 → 养鱼 → 勾选"启用行情情绪"，选主市场，加自选股，填 Tushare token（可留空）。
 
 **先看一眼效果**（不需要装插件，直接打真实行情）：
 
 ```powershell
-node scripts/market-preview.mjs a     # 打印一条真实的情绪消息（a / hk / us）
-node scripts/market-snapshot.mjs a    # 用真实行情渲染一张气泡截图到 .build/market-a.png
+node scripts/market-preview.mjs a            # 打印一条真实的情绪消息（a / hk / us）
+node scripts/market-snapshot.mjs a           # 渲染总盘气泡到 .build/market-a.png
+node scripts/market-snapshot.mjs a --view 1  # 渲染第一只自选股的气泡（等同按一次 Tab）
 ```
 
 **气泡里显示什么**：第一行是情绪台词，第二行是 `指数涨跌 · 自选股1 · 自选股2`

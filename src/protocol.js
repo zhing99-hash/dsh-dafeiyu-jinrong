@@ -21,6 +21,8 @@ export const CompanionMessageKind = Object.freeze({
   CONFIG: 'config',
   BALANCE: 'balance',
   SETTINGS: 'settings',
+  // Helper → host: the user pressed Tab on the pet, advance the bubble view.
+  CYCLE: 'cycle',
   PING: 'ping',
   PONG: 'pong',
   CLOSED: 'closed',

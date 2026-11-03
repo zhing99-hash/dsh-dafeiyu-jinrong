@@ -15,6 +15,7 @@ import {
 } from './feed.js'
 import { createAlertEngine, formatAlert } from './alerts.js'
 import { MOOD_LABELS, createMoodTracker, moodLine, scoreMarket, scoreStock } from './mood.js'
+import { createTushareClient, toTsCode } from './tushare.js'
 
 const BREADTH_TTL_MS = 30 * 1000
 const MAX_BACKOFF_MS = 60_000
@@ -22,6 +23,9 @@ const MAX_BACKOFF_MS = 60_000
 // the index level) every so often so the pet feels live without restarting its
 // animation on every poll.
 const SEND_REFRESH_MS = 30_000
+// A watchlist view is a single stock: refresh it more often so the price feels
+// live, but only when the text actually changed.
+const VIEW_REFRESH_MS = 8_000
 
 function formatPct(value) {
   if (!Number.isFinite(value)) return '—'
@@ -49,6 +53,8 @@ export function createMarketMonitor({
 } = {}) {
   const mood = createMoodTracker({ now })
   const alerts = createAlertEngine({ now })
+  let tushare = null
+  let tushareToken = ''
   let breadthCache = null
   let breadthAt = 0
   let timer = null
@@ -58,6 +64,13 @@ export function createMarketMonitor({
   let lineSeed = 0
   let lastSnapshot = null
   let lastSentAt = 0
+  // Tab cycles the bubble between the whole market and each watchlist name.
+  // 0 is the market view; 1..N follow the configured watchlist order.
+  let viewIndex = 0
+  let lastQuotes = new Map()
+  let lastBreadth = null
+  let lastIndexMessage = null
+  let lastViewDetail = ''
 
   function config() {
     const value = typeof getConfig === 'function' ? getConfig() ?? {} : {}
@@ -68,11 +81,29 @@ export function createMarketMonitor({
       pollSeconds: clampNumber(value.marketPollSeconds, 3, 60, 5),
       cooldownSeconds: clampNumber(value.marketAlertCooldown, 60, 3600, 300),
       yieldToTask: value.marketYieldToTask !== false,
+      // Optional: without a token everything still works on the free quote feed.
+      tushareToken: String(value.marketTushareToken ?? '').trim(),
     }
   }
 
-  function watchedCodes(cfg) {
-    const codes = new Set(MARKET_DEFS[cfg.focus].indexCodes)
+  /** Rebuild the Tushare client only when the token actually changes. */
+  function tushareFor(cfg) {
+    if (cfg.tushareToken === tushareToken) return tushare
+    tushareToken = cfg.tushareToken
+    tushare = cfg.tushareToken ? createTushareClient({ token: cfg.tushareToken, logger }) : null
+    return tushare
+  }
+
+  async function volumeRatioFor(code, quote, cfg) {
+    const tsCode = toTsCode(code)
+    const client = tushareFor(cfg)
+    if (!tsCode || !client || !Number.isFinite(quote?.volume)) return null
+    const average = await client.averageVolume(tsCode)
+    if (!average || average <= 0) return null
+    return quote.volume / average
+  }
+
+  function watchedCodes(cfg) {    const codes = new Set(MARKET_DEFS[cfg.focus].indexCodes)
     for (const entry of cfg.watchlist) {
       const code = normalizeCode(entry?.code)
       if (!code) continue
@@ -172,6 +203,8 @@ export function createMarketMonitor({
       })
 
       const result = mood.update(score, at)
+      lastQuotes = quotes
+      lastBreadth = breadth
       const breadthText = breadth ? `上涨 ${breadth.up} / 下跌 ${breadth.down}` : ''
       // The bubble's detail row is a single elided line (~30 CJK characters at
       // the default size). With a watchlist configured, the user's own names
@@ -198,11 +231,29 @@ export function createMarketMonitor({
         }
       }
 
-      if (result.changed || at - lastSentAt >= SEND_REFRESH_MS) {
+      const views = viewList(cfg)
+      if (viewIndex >= views.length) viewIndex = 0
+      const view = views[viewIndex]
+
+      if (view.kind === 'stock') {
+        // Tushare supplies the 20-day average volume, so the stock bubble can
+        // show a real 量比 instead of guessing from a single day.
+        const volumeRatio = await volumeRatioFor(view.code, quotes.get(view.code), cfg)
+        const message = stockStateMessage(view, quotes, focusQuote, lineSeed, volumeRatio)
+        if (message && (message.detail !== lastViewDetail || at - lastSentAt >= VIEW_REFRESH_MS)) {
+          lastSentAt = at
+          lastViewDetail = message.detail
+          lastSnapshot = { at, score: result.score, mood: result.mood.key, quotes, breadth, view: view.code }
+          send(message)
+        }
+      } else if (result.changed || at - lastSentAt >= SEND_REFRESH_MS) {
         const band = result.mood
         lastSentAt = at
+        lastViewDetail = detail
         lastSnapshot = { at, score: result.score, mood: band.key, quotes, breadth, watchlist: watchlistSnapshot(cfg, quotes, focusQuote) }
-        send(stateMessage(band, cfg, quotes, { detail }))
+        const message = stateMessage(band, cfg, quotes, { detail })
+        lastIndexMessage = message
+        send(message)
       }
     } catch (error) {
       backoffMs = Math.min(MAX_BACKOFF_MS, backoffMs === 0 ? 5000 : backoffMs * 2)
@@ -247,6 +298,33 @@ export function createMarketMonitor({
     /** Exposed for tests and for a manual "refresh now" action. */
     tickNow() {
       return tick()
+    },
+    get view() {
+      const views = viewList(config())
+      return views[viewIndex] ?? views[0]
+    },
+    /**
+     * Advance the bubble: 总盘 → 自选1 → 自选2 → … → 总盘.
+     * Re-renders from the last poll so a key press feels instant instead of
+     * waiting up to one poll interval.
+     */
+    cycleView({ back = false } = {}) {
+      const cfg = config()
+      const views = viewList(cfg)
+      viewIndex = (viewIndex + (back ? -1 : 1) + views.length) % views.length
+      const view = views[viewIndex]
+      if (lastQuotes.size > 0) {
+        const focusQuote = lastQuotes.get(MARKET_DEFS[cfg.focus].indexCodes[0])
+        const message = view.kind === 'stock'
+          ? stockStateMessage(view, lastQuotes, focusQuote, lineSeed)
+          : lastIndexMessage
+        if (message) {
+          lastViewDetail = message.detail
+          lastSentAt = now()
+          send(message)
+        }
+      }
+      return view
     },
     /** Per-stock sentiment for the watchlist panel. */
     describeWatchlist(quotes) {
@@ -304,6 +382,66 @@ function summarizeWatchlist(cfg, quotes, focusQuote, limit = 3) {
 
 function watchlistSnapshot(cfg, quotes, focusQuote) {
   return buildWatchlist(cfg, quotes, focusQuote)
+}
+
+/**
+ * Ordered bubble views: the market first, then each watchlist name.
+ * Tab walks this list, so the order has to match what the user configured.
+ */
+export function viewList(cfg) {
+  const views = [{ kind: 'index', label: '总盘' }]
+  // Accept both the plugin config (`marketWatchlist`) and the normalised
+  // monitor config (`watchlist`) so this stays usable from either side.
+  const entries = Array.isArray(cfg?.watchlist)
+    ? cfg.watchlist
+    : (Array.isArray(cfg?.marketWatchlist) ? cfg.marketWatchlist : [])
+  for (const entry of entries) {
+    const code = normalizeCode(entry?.code)
+    if (!code) continue
+    views.push({
+      kind: 'stock',
+      code,
+      alias: String(entry?.alias ?? '').trim(),
+      above: Number(entry?.above) || null,
+      below: Number(entry?.below) || null,
+    })
+  }
+  return views
+}
+
+const STOCK_LEVEL_STATE = Object.freeze({ strong: 'SUCCESS', flat: 'IDLE', weak: 'ERROR' })
+const STOCK_LEVEL_LABEL = Object.freeze({ strong: '走强', flat: '平稳', weak: '走弱' })
+const STOCK_LEVEL_LINE = Object.freeze({
+  strong: ['这只今天挺精神', '有点起色，我盯着呢', '比大盘强，不错哦'],
+  flat: ['不温不火，看着呢', '就这样吧，喝口水', '没太大动静'],
+  weak: ['这只有点蔫', '不太对劲，我缩一下', '绿了，别看我'],
+})
+
+function stockLine(level, seed = 0) {
+  const lines = STOCK_LEVEL_LINE[level] ?? STOCK_LEVEL_LINE.flat
+  return lines[Math.abs(Math.trunc(Number(seed) || 0)) % lines.length]
+}
+
+/** Bubble for one watchlist name: price, move, volume ratio, and the thresholds. */
+export function stockStateMessage(view, quotes, focusQuote, seed = 0, volumeRatio = null) {
+  const quote = quotes?.get?.(view.code)
+  if (!quote) return null
+  const relativePct = Number.isFinite(quote.pct) && Number.isFinite(focusQuote?.pct)
+    ? quote.pct - focusQuote.pct
+    : null
+  const stock = scoreStock({ pct: quote.pct, relativePct, volumeRatio })
+  const detail = [`${formatPrice(quote.price)} ${formatPct(quote.pct)}`]
+  if (Number.isFinite(volumeRatio)) detail.push(`量比 ${volumeRatio.toFixed(2)}`)
+  if (view.above) detail.push(`上限 ${formatPrice(view.above)}${quote.price >= view.above ? ' 已破' : ''}`)
+  if (view.below) detail.push(`下限 ${formatPrice(view.below)}${quote.price <= view.below ? ' 已破' : ''}`)
+  return createMessage('state', {
+    state: STOCK_LEVEL_STATE[stock.level] ?? 'IDLE',
+    phase: 'market-stock',
+    stage: `${view.alias || quote.name} · ${STOCK_LEVEL_LABEL[stock.level] ?? '平稳'}`,
+    message: stockLine(stock.level, seed),
+    detail: detail.join(' · '),
+    __market: true,
+  })
 }
 
 function clampNumber(value, min, max, fallback) {
