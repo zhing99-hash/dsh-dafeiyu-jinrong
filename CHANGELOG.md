@@ -3,6 +3,13 @@
 > This is release history. For installation, use the [latest stable release](https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/releases/latest), not commands from older entries.
 > 上游历史见 [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)。
 
+## 0.3.1 · 2026-11-03
+
+### Fixed
+
+- Shift+Tab 反向切换无效：Qt 把 Shift+Tab 投递为 `Key_Backtab` 而不是 `Key_Tab`，
+  之前只判断了后者。现在两个键都接受，并按 `Key_Backtab` / Shift 修饰判定方向。
+
 ## 0.3.0 · 2026-11-03
 
 ### Added

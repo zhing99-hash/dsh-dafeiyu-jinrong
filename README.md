@@ -23,10 +23,10 @@
 `dsh-dafeiyu-jinrong-<version>.tgz`（不用解压），完全退出 DSH Host 后：
 
 ```powershell
-dsh plugin --profile web add "C:\Users\<you>\Downloads\dsh-dafeiyu-jinrong-0.3.0.tgz"
+dsh plugin --profile web add "C:\Users\<you>\Downloads\dsh-dafeiyu-jinrong-0.3.1.tgz"
 ```
 
-> 本 fork **不发布到 npm**，所以 `dsh-dafeiyu-jinrong@0.3.0` 这种写法解析不到包，必须给文件路径。
+> 本 fork **不发布到 npm**，所以 `dsh-dafeiyu-jinrong@0.3.1` 这种写法解析不到包，必须给文件路径。
 > 官方桌面端用应用自带的 `dsh`：`<安装目录>\resources\runtime\cli\bin\dsh.cmd`。
 
 **方式二：自己打包**
@@ -36,7 +36,7 @@ dsh plugin --profile web add "C:\Users\<you>\Downloads\dsh-dafeiyu-jinrong-0.3.0
 pnpm pack --pack-destination .tmp
 
 # 2) 装进某个 profile（完全退出该 profile 的 DSH Host 后执行）
-dsh plugin --profile web add ".tmp\dsh-dafeiyu-jinrong-0.3.0.tgz"
+dsh plugin --profile web add ".tmp\dsh-dafeiyu-jinrong-0.3.1.tgz"
 
 # 3) 重启 DSH，设置页 → 行情情绪 → 启用
 ```

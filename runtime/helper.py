@@ -1125,10 +1125,13 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.dragging = False
 
         def keyPressEvent(self, event: Any) -> None:
-            if event.key() == Qt.Key.Key_Tab:
-                # The host owns the view list (总盘 + 自选股); the window only
-                # reports the key press. Shift+Tab walks backwards.
-                back = bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            # Qt delivers Shift+Tab as Key_Backtab, not Key_Tab, so both have to
+            # be accepted or the reverse direction silently does nothing.
+            if event.key() in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab):
+                back = (
+                    event.key() == Qt.Key.Key_Backtab
+                    or bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+                )
                 emit_reply("cycle", back=back)
                 event.accept()
                 return
