@@ -53,7 +53,7 @@ test('client overlay registration follows the webOverlay setting', async () => {
   await new Promise((resolve) => setImmediate(resolve))
   assert.deepEqual(
     calls.filter(([kind, name]) => kind === 'register' && name === 'shell.overlay').map(([, , id]) => id),
-    ['dsh-dafeiyu-overlay'],
+    ['dsh-dafeiyu-jinrong-overlay'],
   )
 
   calls.length = 0

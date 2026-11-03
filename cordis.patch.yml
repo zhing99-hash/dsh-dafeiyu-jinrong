@@ -1,6 +1,6 @@
 - insert:
-    - id: dsh-dafeiyu
-      name: dsh-dafeiyu
+    - id: dsh-dafeiyu-jinrong
+      name: dsh-dafeiyu-jinrong
       config:
         enabled: true
         scale: 1

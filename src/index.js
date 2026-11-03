@@ -12,11 +12,11 @@ try {
 } catch (error) {
   const detail = error instanceof Error ? error.message : String(error)
   console.error(
-    '[dsh-dafeiyu] 插件依赖加载失败，大肥鱼本次启动已自动停用（不影响 DSH 其他功能）。\n'
-    + `[dsh-dafeiyu] 原因: ${detail}\n`
-    + '[dsh-dafeiyu] 修复: 完全退出 DSH 后重新安装 `dsh plugin --profile web add dsh-dafeiyu@latest`，或补齐缺失依赖后重启。',
+    '[dsh-dafeiyu-jinrong] 插件依赖加载失败，大肥鱼本次启动已自动停用（不影响 DSH 其他功能）。\n'
+    + `[dsh-dafeiyu-jinrong] 原因: ${detail}\n`
+    + '[dsh-dafeiyu-jinrong] 修复: 完全退出 DSH 后重新安装 `dsh plugin --profile web add dsh-dafeiyu-jinrong@latest`，或补齐缺失依赖后重启。',
   )
-  plugin = { name: 'dsh-dafeiyu', inject: [], apply() {} }
+  plugin = { name: 'dsh-dafeiyu-jinrong', inject: [], apply() {} }
 }
 
 export const name = plugin.name

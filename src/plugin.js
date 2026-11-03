@@ -22,16 +22,16 @@ import {
 const require = createRequire(import.meta.url)
 const pkg = require('../package.json')
 
-export const name = 'dsh-dafeiyu'
+export const name = 'dsh-dafeiyu-jinrong'
 // The plugin's feature is built on session events, and mounting requires the
 // settings service (used to read live config). Keep the declared inject in
 // sync with those real hard dependencies instead of listing a service that
 // is never consumed directly.
 export const inject = ['sessions', 'settings']
-export const CONFIG_ENDPOINT = '/plugins/dsh-dafeiyu/config'
-export const EVENTS_ENDPOINT = '/plugins/dsh-dafeiyu/events'
-export const MANIFEST_ENDPOINT = '/plugins/dsh-dafeiyu/manifest'
-export const FRAME_ENDPOINT = '/plugins/dsh-dafeiyu/frame'
+export const CONFIG_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/config'
+export const EVENTS_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/events'
+export const MANIFEST_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/manifest'
+export const FRAME_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/frame'
 export { BALANCE_ENDPOINT }
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -298,7 +298,7 @@ function mount(ctx, config = {}, eventCtx = ctx) {
     // DSH treats a failing plugin activation as fatal for the whole boot
     // (dsh-app-boot rethrows init rejections). A host-side API change must
     // cost the pet its session, never the host its startup.
-    logger.error?.(`dsh-dafeiyu failed to activate and stays disabled for this session: ${error instanceof Error ? error.message : String(error)}`)
+    logger.error?.(`dsh-dafeiyu-jinrong failed to activate and stays disabled for this session: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -316,7 +316,7 @@ function createEffectiveSettings(host, overrides, logger) {
       try {
         callback(next)
       } catch (error) {
-        logger.warn?.(`dsh-dafeiyu failed to deliver settings: ${error instanceof Error ? error.message : String(error)}`)
+        logger.warn?.(`dsh-dafeiyu-jinrong failed to deliver settings: ${error instanceof Error ? error.message : String(error)}`)
       }
     }
   }
@@ -357,7 +357,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
   const overrides = createUserSettingsStore(defaultUserSettingsPath(), {
     warn(message) {
       diagnosticsLog.write('WARN', message)
-      logger.warn?.(`dsh-dafeiyu ${message}`)
+      logger.warn?.(`dsh-dafeiyu-jinrong ${message}`)
     },
   })
   const settings = createEffectiveSettings(hostSettings, overrides, logger)
@@ -437,7 +437,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
 
   // `settings.describe()` lists the settings-page namespaces, not the
   // configEditor entries that `settings.update()` writes. Its absence of
-  // "dsh-dafeiyu" is not evidence of a failed write (issue #95), so it is only
+  // "dsh-dafeiyu-jinrong" is not evidence of a failed write (issue #95), so it is only
   // printed on an actual failure and labelled explicitly.
   const settingsPageNamespaceList = () => {
     try {
@@ -464,7 +464,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
       }
     }
     const base = process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local')
-    const directory = join(base, 'dsh-dafeiyu', 'tmp')
+    const directory = join(base, 'dsh-dafeiyu-jinrong', 'tmp')
     try {
       mkdirSync(directory, { recursive: true })
     } catch {
@@ -531,7 +531,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
 
   const startRuntime = (resolved) => {
     if (resolved.enabled === false) {
-      logger.info?.('dsh-dafeiyu is disabled')
+      logger.info?.('dsh-dafeiyu-jinrong is disabled')
       return
     }
     bridge = new HelperProcess({
@@ -558,9 +558,9 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
           const detail = error instanceof Error ? error.message : String(error)
           diagnosticsLog.write(
             'ERROR',
-            `settings.update failed for namespace "${hostSettings.namespace ?? 'dsh-dafeiyu'}": ${detail}; settings-page namespaces (describe, not write targets): ${settingsPageNamespaceList() || '(none)'}; kept native menu values: ${JSON.stringify(overrides.snapshot())}`,
+            `settings.update failed for namespace "${hostSettings.namespace ?? 'dsh-dafeiyu-jinrong'}": ${detail}; settings-page namespaces (describe, not write targets): ${settingsPageNamespaceList() || '(none)'}; kept native menu values: ${JSON.stringify(overrides.snapshot())}`,
           )
-          logger.warn?.(`dsh-dafeiyu failed to persist helper settings: ${detail}`)
+          logger.warn?.(`dsh-dafeiyu-jinrong failed to persist helper settings: ${detail}`)
         }).finally(() => {
           // The Helper already applied the menu choice locally. Re-sending the
           // effective CONFIG keeps that choice in the replay snapshot if the
@@ -583,7 +583,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
       diagnosticsLogged = true
       diagnosticsLog.write(
         'INFO',
-        `settings persistence (activation): namespace="${hostSettings.namespace ?? 'dsh-dafeiyu'}"; update=${typeof hostSettings.update === 'function'}; native-menu fallback: ${JSON.stringify(overrides.snapshot())}`,
+        `settings persistence (activation): namespace="${hostSettings.namespace ?? 'dsh-dafeiyu-jinrong'}"; update=${typeof hostSettings.update === 'function'}; native-menu fallback: ${JSON.stringify(overrides.snapshot())}`,
       )
     }
     bridge.start()
@@ -602,7 +602,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     }))
     if (balance.get().status !== 'disabled') bridge.send(createMessage(CompanionMessageKind.BALANCE, balance.get()))
     if (resolved.marketEnabled === true) startMarketRuntime()
-    logger.info?.('dsh-dafeiyu companion bridge started')
+    logger.info?.('dsh-dafeiyu-jinrong companion bridge started')
   }
 
   startRuntime(settings.get())
@@ -620,7 +620,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     try {
       for (const message of reducer.handle(session, event)) bridge.send(message)
     } catch (error) {
-      logger.error?.('dsh-dafeiyu failed to handle session event', error)
+      logger.error?.('dsh-dafeiyu-jinrong failed to handle session event', error)
     }
   }, { global: true })
   const offDisposed = eventCtx.on('session/disposed', (session) => {
@@ -628,7 +628,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     try {
       for (const message of reducer.disposeSession(session)) bridge.send(message)
     } catch (error) {
-      logger.error?.('dsh-dafeiyu failed to dispose session', error)
+      logger.error?.('dsh-dafeiyu-jinrong failed to dispose session', error)
     }
   }, { global: true })
 
@@ -659,7 +659,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     } catch (error) {
       // This callback runs inside the host's settings dispatch; a throw here
       // would take the host's settings service down with the pet.
-      logger.error?.(`dsh-dafeiyu failed to apply settings: ${error instanceof Error ? error.message : String(error)}`)
+      logger.error?.(`dsh-dafeiyu-jinrong failed to apply settings: ${error instanceof Error ? error.message : String(error)}`)
     }
   })
   // A credential or account change invalidates the old display immediately.
@@ -677,25 +677,25 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     ctx.inject(['webServer'], (httpCtx) => {
       httpCtx.effect(
         () => httpCtx.webServer.register({ kind: 'exact', path: CONFIG_ENDPOINT, handler: createConfigHandler(settings) }),
-        'dsh-dafeiyu: local settings endpoint',
+        'dsh-dafeiyu-jinrong: local settings endpoint',
       )
       httpCtx.effect(
         () => httpCtx.webServer.register({ kind: 'exact', path: EVENTS_ENDPOINT, handler: createEventsHandler(eventStream) }),
-        'dsh-dafeiyu: local event stream',
+        'dsh-dafeiyu-jinrong: local event stream',
       )
       httpCtx.effect(
         () => httpCtx.webServer.register({ kind: 'exact', path: BALANCE_ENDPOINT, handler: createBalanceHandler(balance) }),
-        'dsh-dafeiyu: local balance endpoint',
+        'dsh-dafeiyu-jinrong: local balance endpoint',
       )
       const assetRoutes = createAssetRoutes()
       if (assetRoutes) {
         httpCtx.effect(
           () => httpCtx.webServer.register({ kind: 'exact', path: MANIFEST_ENDPOINT, handler: assetRoutes.manifestHandler }),
-          'dsh-dafeiyu: local manifest endpoint',
+          'dsh-dafeiyu-jinrong: local manifest endpoint',
         )
         httpCtx.effect(
           () => httpCtx.webServer.register({ kind: 'exact', path: FRAME_ENDPOINT, handler: assetRoutes.frameHandler }),
-          'dsh-dafeiyu: local frame endpoint',
+          'dsh-dafeiyu-jinrong: local frame endpoint',
         )
       }
     })

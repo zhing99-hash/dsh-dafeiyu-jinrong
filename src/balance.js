@@ -1,6 +1,6 @@
 import { isLocalRequest, jsonResponse } from './local-http.js'
 
-export const BALANCE_ENDPOINT = '/plugins/dsh-dafeiyu/balance'
+export const BALANCE_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/balance'
 const errors = {
   NOT_CONFIGURED: '请在 DSH 中配置 DeepSeek API Key，或登录 DeepSeek 账户。',
   AUTH: '余额凭据无效或已过期，请检查 DSH 的模型／账户设置。',

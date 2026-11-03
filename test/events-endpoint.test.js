@@ -30,7 +30,7 @@ function fakeReq(address = '127.0.0.1', host = '127.0.0.1:3080', origin) {
 }
 
 test('event endpoint is declared on the plugin namespace', () => {
-  assert.equal(EVENTS_ENDPOINT, '/plugins/dsh-dafeiyu/events')
+  assert.equal(EVENTS_ENDPOINT, '/plugins/dsh-dafeiyu-jinrong/events')
 })
 
 test('event stream rejects non-loopback and cross-origin requests', () => {
