@@ -30,7 +30,20 @@
 **先看一眼效果**（不需要装插件，直接打真实行情）：
 
 ```powershell
-node scripts/market-preview.mjs a    # 或 hk / us
+node scripts/market-preview.mjs a     # 打印一条真实的情绪消息（a / hk / us）
+node scripts/market-snapshot.mjs a    # 用真实行情渲染一张气泡截图到 .build/market-a.png
+```
+
+**气泡里显示什么**：第一行是情绪台词，第二行是 `指数涨跌 · 自选股1 · 自选股2`
+（单行会被 elide，所以配了自选股时优先显示你自己的票；涨跌家数只在没有自选股时出现）。
+
+**排错：Helper 起不来 / 提示 "Could not create temporary directory"**
+PyInstaller 打包的 Helper 启动前要把约 100 MB 解包到临时目录。某些 Windows 环境（受限 temp、
+重定向 temp、或本机遇到的"C 盘不行、F 盘可以"）会让它解包失败，表现为宠物闪退。
+可以指定一个可写目录：
+
+```powershell
+$env:DSH_DAFEIYU_TMP = 'D:\dsh-tmp'
 ```
 
 **为什么不用音量因子**：指数行情的成交量单位与日 K 线不一致（报价 ~5.7e5、K 线 ~4e8），
