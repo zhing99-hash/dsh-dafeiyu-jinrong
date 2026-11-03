@@ -3,6 +3,13 @@
 > This is release history. For installation, use the [latest stable release](https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/releases/latest), not commands from older entries.
 > 上游历史见 [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)。
 
+## 0.3.2 · 2026-11-03
+
+### Fixed
+
+- 设置页「养鱼」里的自选股、情绪市场、轮询/冷却、Tushare Token 之前只在
+  「启用行情情绪」打开后才渲染，新装用户看到一个空壳，以为没有自选股配置。
+  现在这些字段始终显示，开关只控制是否真的轮询行情。
 ## 0.3.1 · 2026-11-03
 
 ### Fixed

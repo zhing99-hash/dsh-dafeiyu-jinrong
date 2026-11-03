@@ -1,6 +1,6 @@
 {
   "name": "dsh-dafeiyu-jinrong",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Desktop BigFish companion driven by DeepSeek Harness session events, with A-share / Hong Kong / US market sentiment and price alerts.",
   "author": "QCYTSN",
   "type": "module",
