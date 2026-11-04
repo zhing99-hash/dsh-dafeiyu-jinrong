@@ -87,6 +87,7 @@ node scripts/market-snapshot.mjs a --view 1  # 渲染第一只自选股的气泡
 （推荐，改自选股顺序也不会指错）或 `{"index":1}`，桌宠会立即切过去。
 配套面板 `dsh-dafeiyu-stockpanel` 用它做 Tab 双向同步；没有这个端点时
 面板会静默忽略，只做“跟随桌宠视角”的只读同步。
+面板仓库：https://github.com/zhing99-hash/dsh-dafeiyu-stockpanel
 
 **排错：Helper 起不来 / 提示 "Could not create temporary directory"**
 PyInstaller 打包的 Helper 启动前要把约 100 MB 解包到临时目录。某些 Windows 环境（受限 temp、
