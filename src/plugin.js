@@ -30,6 +30,7 @@ export const name = 'dsh-dafeiyu-jinrong'
 export const inject = ['sessions', 'settings']
 export const CONFIG_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/config'
 export const EVENTS_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/events'
+export const MARKET_VIEW_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/market-view'
 export const MANIFEST_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/manifest'
 export const FRAME_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/frame'
 export { BALANCE_ENDPOINT }
@@ -236,6 +237,70 @@ export function createEventsHandler(stream) {
     res.write('retry: 2000\n\n')
     const remove = stream.add(res)
     req.on('close', remove)
+  }
+}
+
+async function readJsonObject(req, limit = 4096) {
+  const chunks = []
+  let bytes = 0
+  for await (const chunk of req) {
+    bytes += chunk.length
+    if (bytes > limit) throw new Error('request body is too large')
+    chunks.push(chunk)
+  }
+  if (chunks.length === 0) return {}
+  const value = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('body must be an object')
+  }
+  return value
+}
+
+/**
+ * One navigation channel for companion panels.
+ *
+ * GET returns the ordered views and the active index. POST accepts either
+ * `{ code }` (preferred — reordering the watchlist cannot point at the wrong
+ * stock) or `{ index }`, then repaints the bubble immediately. The endpoint is
+ * local-only because it drives the desktop pet.
+ */
+export function createMarketViewHandler(getMonitor) {
+  return async (req, res) => {
+    if (!isLocalRequest(req)) {
+      jsonResponse(res, 403, { error: 'local access only' })
+      return
+    }
+    const monitor = typeof getMonitor === 'function' ? getMonitor() : undefined
+    if (!monitor) {
+      jsonResponse(res, 503, { error: 'market view is not running; enable 行情情绪 first' })
+      return
+    }
+    if (req.method === 'GET') {
+      jsonResponse(res, 200, monitor.describeView())
+      return
+    }
+    if (req.method !== 'POST') {
+      jsonResponse(res, 405, { error: 'method not allowed' })
+      return
+    }
+    let body
+    try {
+      body = await readJsonObject(req)
+    } catch (error) {
+      jsonResponse(res, 400, { error: error instanceof Error ? error.message : String(error) })
+      return
+    }
+    const code = typeof body.code === 'string' ? body.code : undefined
+    const index = Number.isInteger(body.index) ? body.index : undefined
+    if (code === undefined && index === undefined) {
+      jsonResponse(res, 400, { error: 'provide { code } or { index }' })
+      return
+    }
+    const view = monitor.selectView({ code, index })
+    jsonResponse(res, 200, {
+      ...monitor.describeView(),
+      selected: view ? { kind: view.kind, code: view.code ?? null, alias: view.alias ?? view.label ?? null } : null,
+    })
   }
 }
 
@@ -690,6 +755,10 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
       httpCtx.effect(
         () => httpCtx.webServer.register({ kind: 'exact', path: EVENTS_ENDPOINT, handler: createEventsHandler(eventStream) }),
         'dsh-dafeiyu-jinrong: local event stream',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: MARKET_VIEW_ENDPOINT, handler: createMarketViewHandler(() => marketMonitor) }),
+        'dsh-dafeiyu-jinrong: local market view endpoint',
       )
       httpCtx.effect(
         () => httpCtx.webServer.register({ kind: 'exact', path: BALANCE_ENDPOINT, handler: createBalanceHandler(balance) }),

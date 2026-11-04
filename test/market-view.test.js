@@ -87,6 +87,47 @@ test('cycleView walks 总盘 → 自选股 → 总盘 and repaints immediately',
   monitor.stop()
 })
 
+test('selectView jumps by code, ignores unknown codes, and describes the views', async () => {
+  const messages = []
+  const monitor = createMarketMonitor({
+    getConfig: () => ({ ...config }),
+    send: (message) => messages.push(message),
+    fetchImpl: stubFetch(`${quoteLine('sh600519', '贵州茅台', 1705, 1690)}${quoteLine('sh000001', '上证指数', 3600, 3600)}`),
+    now: () => Date.parse('2026-11-03T02:30:00Z'),
+    logger: { warn() {} },
+  })
+
+  monitor.start()
+  await monitor.tickNow()
+  messages.length = 0
+
+  const picked = monitor.selectView({ code: 'SH600519' })
+  assert.equal(picked.kind, 'stock')
+  assert.equal(picked.code, 'sh600519')
+  assert.equal(monitor.viewIndex, 1)
+  assert.equal(messages.length, 1)
+  assert.equal(messages[0].phase, 'market-stock')
+
+  messages.length = 0
+  const unknown = monitor.selectView({ code: 'sh999999' })
+  assert.equal(unknown.code, 'sh600519')
+  assert.equal(monitor.viewIndex, 1)
+  assert.equal(messages.length, 0)
+
+  const described = monitor.describeView()
+  assert.equal(described.index, 1)
+  assert.equal(described.view.code, 'sh600519')
+  assert.deepEqual(described.views.map((view) => view.kind), ['index', 'stock', 'stock'])
+  assert.equal(described.views[2].code, 'hk00700')
+
+  // The index form is what a future keyboard shortcut or test uses.
+  const indexForm = monitor.selectView({ index: 0 })
+  assert.equal(indexForm.kind, 'index')
+  assert.equal(monitor.viewIndex, 0)
+
+  monitor.stop()
+})
+
 test('a missing quote for the viewed stock does not break the cycle', () => {
   const view = { kind: 'stock', code: 'hk00700', alias: '腾讯' }
   assert.equal(stockStateMessage(view, new Map(), null), null)

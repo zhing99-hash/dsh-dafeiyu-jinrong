@@ -3,6 +3,24 @@
 > This is release history. For installation, use the [latest stable release](https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/releases/latest), not commands from older entries.
 > 上游历史见 [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)。
 
+## 0.3.3 · 2026-11-04
+
+### Added
+
+- 配套面板控制端点 `GET/POST /plugins/dsh-dafeiyu-jinrong/market-view`：
+  `GET` 返回当前视角序号、当前视角和有序视角列表；`POST { "code": "sh603019" }`
+  或 `{ "index": 1 }` 立即把桌宠切到对应视角并重绘气泡。
+  只接受本机请求；行情情绪关闭时返回 503。
+- 行情监视器新增 `selectView()` / `describeView()` / `viewIndex`，`cycleView()`
+  复用同一套立即重绘逻辑。自选股面板（`dsh-dafeiyu-stockpanel`）用它做
+  Tab 双向同步：面板里按 Tab，桌宠跟着切；桌宠按 Tab，面板也跟着切。
+
+### Tests
+
+- 新增 `test/market-view-endpoint.test.js`，覆盖 GET、按代码/序号选择、
+  未知代码不移动、非本机/跨域拒绝、行情关闭 503。
+- `test/market-view.test.js` 增加 `selectView()` / `describeView()` 用例。
+
 ## 0.3.2 · 2026-11-03
 
 ### Fixed

@@ -82,6 +82,12 @@ node scripts/market-snapshot.mjs a --view 1  # 渲染第一只自选股的气泡
 **气泡里显示什么**：第一行是情绪台词，第二行是 `指数涨跌 · 自选股1 · 自选股2`
 （单行会被 elide，所以配了自选股时优先显示你自己的票；涨跌家数只在没有自选股时出现）。
 
+**给配套面板的控制端点**（0.3.3+）：`GET /plugins/dsh-dafeiyu-jinrong/market-view`
+返回当前视角和有序列表；`POST` 同一路径，body 用 `{"code":"sh603019"}`
+（推荐，改自选股顺序也不会指错）或 `{"index":1}`，桌宠会立即切过去。
+配套面板 `dsh-dafeiyu-stockpanel` 用它做 Tab 双向同步；没有这个端点时
+面板会静默忽略，只做“跟随桌宠视角”的只读同步。
+
 **排错：Helper 起不来 / 提示 "Could not create temporary directory"**
 PyInstaller 打包的 Helper 启动前要把约 100 MB 解包到临时目录。某些 Windows 环境（受限 temp、
 重定向 temp、或本机遇到的"C 盘不行、F 盘可以"）会让它解包失败，表现为宠物闪退。
