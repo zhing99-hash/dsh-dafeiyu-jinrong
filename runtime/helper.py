@@ -1205,7 +1205,11 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
 
         def _card_data(self) -> dict[str, Any]:
             message, detail, state = self._active_status()
-            if not message and self.balance_summary:
+            if not message:
+                # The initial status has a short TTL. With bubbleMode "always"
+                # the card stays on screen, so an empty status would leave a
+                # blank white box with only the state dot. Fall back to the
+                # same standby line the balance footer used to show.
                 message = "大肥鱼陪你待命"
                 detail = "DSH · 等待下一次任务"
                 state = "IDLE"
