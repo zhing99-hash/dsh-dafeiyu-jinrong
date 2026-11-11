@@ -32,6 +32,26 @@ They remain subject to the upstream MIT license, bundled verbatim as
 given; the "dsh-pet" name and its project identity belong to their respective
 owners.
 
+## 0.4.0 bubble, action and meme assets
+
+The 0.4.0 studio adds eight in-place animation clips imported from the same
+pinned dsh-pet commit (`549fff2e…`): 悠闲哼歌, 照镜子, 摇扇纳凉, 原地专心玩魔方,
+拆礼物, 点击回应-开心跃动, 点击回应-害羞惊讶 and 点击回应-傲娇生气. They use
+the same 412×344 crop and per-clip source SHA-256 records as the base set; no
+rights beyond the upstream terms are claimed. Upstream currently describes the
+code as MIT and the character artwork under CC BY-NC-SA 4.0 (see
+[PC2005-cloud/dsh-pet](https://github.com/PC2005-cloud/dsh-pet)); this project
+remains an unofficial, non-commercial fan project and does not relicense those
+frames.
+
+The studio itself adds no copied third-party images: bubble themes are painted
+by code; the default bubble JSON (`assets/bubble-default.json`), theme presets
+and action config (`assets/actions.json`) are original configuration covered by
+the MIT code license. User-uploaded memes stay under `$DSH_HOME/dafeiyu/memes`
+and are not redistributed with the package. The optional `dsh-meme` integration
+reads that plugin's local paths at runtime; its images remain under dsh-meme's
+own terms.
+
 ## Legacy BigFish frames (archived, restricted)
 
 The frames previously bundled under `assets/pet/` now live under

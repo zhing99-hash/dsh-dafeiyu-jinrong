@@ -36,6 +36,9 @@ STATES = {"IDLE", "THINKING", "WORKING", "WAITING", "SUCCESS", "ERROR", "DISCONN
 # 24 fps set resident would need well over a gigabyte. Frames are read from disk
 # once as compressed bytes and decoded through a bounded cache instead.
 DECODED_FRAME_CACHE = 24
+# Raw WebP bytes are cheap to keep but the full 24-clip set is ~83 MB. Keep a
+# sliding window of recently played frames instead of preloading every clip.
+RAW_FRAME_CACHE = 180
 
 
 def configure_qt_platform() -> None:
@@ -57,6 +60,61 @@ def configure_stdio() -> None:
         reconfigure = getattr(stream, "reconfigure", None)
         if callable(reconfigure):
             reconfigure(encoding="utf-8", errors=errors)
+
+
+MINIMAL_BUBBLE = {
+    "version": 1,
+    "theme": {
+        "preset": "classic", "width": 420, "radius": 30, "padding": 18,
+        "background": "#FCFCFD", "border": "#DADDE2", "borderWidth": 1,
+        "shadow": True, "opacity": 0.97, "font": "Microsoft YaHei UI",
+        "text": "#25282D", "muted": "#747981", "accent": "#3478F6",
+        "titleSize": 11, "bodySize": 9,
+    },
+    "scenes": {
+        "status": {
+            "name": "任务状态", "ttlMs": 4200,
+            "rows": [{"modules": [
+                {"type": "text", "field": "message", "size": 11, "bold": True, "weight": 1, "maxLines": 2},
+                {"type": "spacer", "weight": 1},
+            ]}],
+        },
+    },
+    "bindings": {
+        "IDLE": "status", "THINKING": "status", "WORKING": "status",
+        "WAITING": "status", "SUCCESS": "status", "ERROR": "status",
+        "DISCONNECTED": "status", "MULTI_TASK": "status",
+    },
+    "clickSequence": [],
+    "randomLines": [{"weight": 1, "lines": ["我在这儿呢"]}],
+}
+
+
+def _read_asset_json(name: str, fallback: dict[str, Any]) -> dict[str, Any]:
+    try:
+        path = bundle_root() / "assets" / name
+        value = json.loads(path.read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else fallback
+    except (OSError, ValueError):
+        return fallback
+
+
+def load_bubble_spec() -> dict[str, Any]:
+    return _read_asset_json("bubble-default.json", MINIMAL_BUBBLE)
+
+
+def load_action_config() -> dict[str, Any]:
+    return _read_asset_json("actions.json", {
+        "version": 1,
+        "labels": {},
+        "categories": [{"id": "micro", "label": "小动作", "weight": 1, "clips": ["idle_stretch", "idle_yawn"]}],
+        "click": {"head": {"clips": ["head_pat"], "lines": ["别摸啦"]}},
+        "sleep": {"enabled": False},
+        "menu": [],
+        "intervalsMs": {"quiet": [45000, 90000], "normal": [25000, 45000], "lively": [12000, 22000]},
+        "noRepeatWindow": 2,
+        "interactionCooldownMs": 1200,
+    })
 
 
 def parse_message(line: str) -> dict[str, Any]:
@@ -235,7 +293,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
     configure_qt_platform()
     try:
         from PySide6.QtCore import QAbstractNativeEventFilter, QObject, QPoint, QRectF, Qt, QTimer, QUrl, Signal
-        from PySide6.QtGui import QColor, QDesktopServices, QFont, QFontMetrics, QMouseEvent, QPainter, QPen, QPixmap
+        from PySide6.QtGui import QColor, QDesktopServices, QFont, QFontMetrics, QMouseEvent, QMovie, QPainter, QPen, QPixmap
         from PySide6.QtWidgets import QApplication, QMenu, QWidget
     except ImportError as error:
         print(
@@ -244,6 +302,11 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         )
         recorder.close()
         return 2
+
+    try:
+        from .bubble import BubbleRenderer, render_preview
+    except ImportError:
+        from bubble import BubbleRenderer, render_preview
 
     class Inbox(QObject):
         message = Signal(dict)
@@ -359,18 +422,15 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             else:
                 self.bubble_states = list(self.layout.get("bubbleStates", ["SUCCESS", "ERROR", "WAITING"]))
             self.model = AnimationModel(manifest)
-            self.frame_sources: dict[str, bytes] = {}
-            for clip in self.model.clips.values():
-                for frame in clip.frames:
-                    if frame in self.frame_sources:
-                        continue
-                    try:
-                        self.frame_sources[frame] = (asset_root / frame).read_bytes()
-                    except OSError as error:
-                        raise RuntimeError(f"Unable to load BigFish frame: {frame}") from error
+            self.asset_root = asset_root
+            self.frame_names = {
+                frame for clip in self.model.clips.values() for frame in clip.frames
+            }
+            self.frame_sources: OrderedDict[str, bytes] = OrderedDict()
             self.decoded_frames: OrderedDict[str, QPixmap] = OrderedDict()
             # Fail here, not on the first paint, when the assets are unreadable or
-            # the bundled Qt has no WebP image plugin.
+            # the bundled Qt has no WebP image plugin. Only the first frame of
+            # each clip is decoded; all other frames load on demand below.
             for clip in self.model.clips.values():
                 if clip.frames:
                     self._pixmap(clip.frames[0])
@@ -389,11 +449,26 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.overlay_message = ""
             self.overlay_detail = ""
             self.overlay_deadline_ms: int | None = None
+            self.action_until_ms: int | None = None
             self.task = ""
             self.tasks: list[dict[str, Any]] = []
             self.webui_url = os.environ.get("DSH_DAFEIYU_WEBUI_URL", "http://127.0.0.1:3080/")
             self.open_label = os.environ.get("DSH_DAFEIYU_OPEN_LABEL", "打开 DSH")
             self.balance_summary = ""
+            self.bubble_spec = load_bubble_spec()
+            self.bubble_renderer = BubbleRenderer(self.bubble_spec, self.LABELS)
+            self.action_config = load_action_config()
+            self.bubble_override: dict[str, Any] | None = None
+            self.click_step = 0
+            self.recent_actions: list[str] = []
+            self.last_random_line = ""
+            self.meme_path = ""
+            self.meme_caption = ""
+            self.meme_movie: Any = None
+            self.meme_pixmap: QPixmap | None = None
+            self.sleeping = False
+            self.stock_snapshot: list[dict[str, Any]] = []
+            self._measure_cache: tuple[Any, tuple[int, int]] | None = None
             self.drag_origin: QPoint | None = None
             self.pet_origin: QPoint | None = None
             self.pet_x = 0
@@ -453,9 +528,25 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             elif kind == "alert":
                 if message.get("alert") == "APPROVAL":
                     self._notify_alert("APPROVAL")
+            elif kind == "bubble":
+                self._apply_bubble_message(message)
+            elif kind == "meme":
+                self._apply_meme_message(message)
+            elif kind == "action":
+                self._play_action_message(message)
+            elif kind == "preview":
+                self._render_preview(message)
             elif kind in {"state", "pulse"}:
+                # A deliberate ACTION preview (studio test button / context menu)
+                # must survive the state ticks that the host sends while a task
+                # is running; otherwise apply_state clears the overlay almost
+                # immediately and the new clip is never visible.
+                if self.action_until_ms is not None and self._now_ms() < self.action_until_ms:
+                    return
                 previous_base_state = self.model.base_state
                 state = str(message.get("state", "IDLE"))
+                if self.sleeping and state != "IDLE":
+                    self._wake()
                 self.display_state = state
                 if kind == "pulse":
                     ttl_ms = max(250, int(message.get("ttlMs", 1800)))
@@ -546,8 +637,243 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             bubble_states = message.get("bubbleStates")
             if isinstance(bubble_states, list):
                 self.bubble_states = [str(state) for state in bubble_states if isinstance(state, str)]
+            bubble = message.get("bubble")
+            if isinstance(bubble, dict):
+                try:
+                    self.bubble_spec = bubble
+                    self.bubble_renderer = BubbleRenderer(bubble, self.LABELS)
+                    self.bubble_override = None
+                    self._measure_cache = None
+                except Exception as error:
+                    print(f"Unable to apply bubble spec: {error}", file=sys.stderr)
+            actions = message.get("actions")
+            if isinstance(actions, dict):
+                self.action_config = actions
+                if not self.reduced_motion:
+                    self._schedule_micro()
             self._sync_bubble_size()
             self._save_layout()
+
+        # ---- 0.4 bubble / meme / action surfaces -------------------------
+        def _apply_bubble_message(self, message: dict[str, Any]) -> None:
+            scene = str(message.get("scene") or "status")
+            ttl = int(message.get("ttlMs") or 0)
+            data = message.get("data") if isinstance(message.get("data"), dict) else {}
+            self.bubble_override = {
+                "scene": scene,
+                "data": dict(data),
+                "deadline": self._now_ms() + ttl if ttl > 0 else None,
+            }
+            self._measure_cache = None
+            self._sync_bubble_size()
+            self.update()
+
+        def _apply_meme_message(self, message: dict[str, Any]) -> None:
+            path = str(message.get("path") or "")
+            if not path:
+                return
+            self._load_meme(path)
+            self.meme_caption = str(message.get("caption") or "")[:200]
+            ttl = int(message.get("ttlMs") or 8000)
+            self.bubble_override = {
+                "scene": "meme",
+                "data": {"caption": self.meme_caption},
+                "deadline": self._now_ms() + ttl if ttl > 0 else None,
+            }
+            self._measure_cache = None
+            self._sync_bubble_size()
+            self.update()
+
+        def _load_meme(self, path: str) -> None:
+            self._clear_meme()
+            self.meme_path = path
+            if path.lower().endswith(".gif"):
+                movie = QMovie(path)
+                movie.setCacheMode(QMovie.CacheMode.CacheAll)
+                movie.frameChanged.connect(self._on_meme_frame)
+                movie.start()
+                self.meme_movie = movie
+                pixmap = movie.currentPixmap()
+                self.meme_pixmap = pixmap if not pixmap.isNull() else None
+                return
+            pixmap = QPixmap(path)
+            self.meme_pixmap = pixmap if not pixmap.isNull() else None
+
+        def _on_meme_frame(self) -> None:
+            if self.meme_movie is None:
+                return
+            pixmap = self.meme_movie.currentPixmap()
+            if not pixmap.isNull():
+                self.meme_pixmap = pixmap
+                self.update()
+
+        def _clear_meme(self) -> None:
+            if self.meme_movie is not None:
+                try:
+                    self.meme_movie.stop()
+                except Exception:
+                    pass
+                try:
+                    self.meme_movie.deleteLater()
+                except Exception:
+                    pass
+            self.meme_movie = None
+            self.meme_pixmap = None
+            self.meme_path = ""
+            self.meme_caption = ""
+
+        def _play_action_message(self, message: dict[str, Any]) -> None:
+            clip = str(message.get("clip") or "")
+            if clip in self.model.clips:
+                frames = self.model.clips[clip].frames
+                frame_ms = int(getattr(self.model.clips[clip], "frame_ms", 42) or 42)
+                self.action_until_ms = self._now_ms() + min(3000, len(frames) * frame_ms + 200)
+                self._play_model_overlay(clip)
+
+        def _render_preview(self, message: dict[str, Any]) -> None:
+            request_id = message.get("requestId")
+            try:
+                spec = message.get("spec") if isinstance(message.get("spec"), dict) else self.bubble_spec
+                scene = str(message.get("scene") or "status")
+                data = dict(message.get("data") or {})
+                data.setdefault("labels", self.LABELS)
+                meme_path = data.get("memePath")
+                if meme_path:
+                    pixmap = QPixmap(str(meme_path))
+                    if not pixmap.isNull():
+                        data["memePixmap"] = pixmap
+                image = render_preview(spec, scene, data, self.bubble_scale)
+                target = Path(str(message.get("path") or ""))
+                if target:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    if not image.save(str(target), "PNG"):
+                        raise RuntimeError("无法保存预览图")
+                emit_reply("preview-ready", requestId=request_id)
+            except Exception as error:
+                emit_reply("preview-ready", requestId=request_id, error=str(error))
+
+        def _random_line(self) -> str:
+            entries = self.bubble_spec.get("randomLines") or []
+            pool: list[tuple[float, str]] = []
+            for entry in entries:
+                weight = float(entry.get("weight") or 1.0)
+                for line in entry.get("lines") or []:
+                    text = str(line).strip()
+                    if text:
+                        pool.append((weight, text))
+            if not pool:
+                return ""
+            choices = [item for item in pool if item[1] != self.last_random_line] or pool
+            total = sum(weight for weight, _ in choices) or 1.0
+            roll = random.uniform(0, total)
+            acc = 0.0
+            for weight, line in choices:
+                acc += weight
+                if roll <= acc:
+                    self.last_random_line = line
+                    return line
+            line = choices[-1][1]
+            self.last_random_line = line
+            return line
+
+        def _set_click_bubble(self, message: str) -> None:
+            sequence = self.bubble_spec.get("clickSequence") or []
+            if not sequence:
+                return
+            entry = sequence[self.click_step % len(sequence)]
+            scene = str(entry.get("scene") or "click1")
+            ttl = int(self.bubble_renderer.scene(scene).get("ttlMs") or 5000)
+            self.click_step += 1
+            self.bubble_override = {
+                "scene": scene,
+                "data": {"randomLine": message or self._random_line()},
+                "deadline": self._now_ms() + ttl if ttl > 0 else None,
+            }
+
+        def _advance_click_bubble(self) -> None:
+            if self.meme_path or (self.bubble_override and self.bubble_override.get("scene") == "meme"):
+                emit_reply("bubble-click")
+                return
+            scene = str((self.bubble_override or {}).get("scene") or "")
+            if scene.startswith("click"):
+                self._set_click_bubble(self._random_line())
+                self._sync_bubble_size()
+                self.update()
+                return
+            self.bubble_override = None
+            self._sync_bubble_size()
+            self.update()
+
+        def _bubble_contains(self, point: Any) -> bool:
+            if not self._bubble_visible():
+                return False
+            x, y, width, height = self._bubble_rect()
+            return x <= point.x() <= x + width and y <= point.y() <= y + height
+
+        def _toggle_sleep(self) -> None:
+            if self.sleeping:
+                self._wake()
+                return
+            self.sleeping = True
+            self.micro_timer.stop()
+            sleep = self.action_config.get("sleep") or {}
+            loop = str((sleep.get("loop") or ["idle"])[0])
+            if loop in self.model.clips:
+                self._play_model_overlay(loop)
+            line = random.choice(sleep.get("lines") or ["好困…我先睡一会儿。"])
+            self.bubble_override = {
+                "scene": "status",
+                "data": {"message": line, "detail": "点一下叫醒我"},
+                "deadline": None,
+            }
+            self._sync_bubble_size()
+            self.update()
+
+        def _wake(self) -> None:
+            if not self.sleeping:
+                return
+            self.sleeping = False
+            sleep = self.action_config.get("sleep") or {}
+            end = sleep.get("end") or []
+            if end and str(end[0]) in self.model.clips:
+                self._play_model_overlay(str(end[0]))
+            line = random.choice(sleep.get("wakeLines") or ["唔……我醒了。"])
+            self.bubble_override = {
+                "scene": "status",
+                "data": {"message": line, "detail": ""},
+                "deadline": self._now_ms() + 3000,
+            }
+            self._schedule_micro()
+            self._sync_bubble_size()
+            self.update()
+
+        def _pick_idle_clip(self) -> str | None:
+            pool: list[tuple[float, list[str]]] = []
+            for category in self.action_config.get("categories") or []:
+                clips = [
+                    clip for clip in category.get("clips") or []
+                    if clip in self.model.clips and not self.model.clips[clip].loop
+                ]
+                if clips:
+                    pool.append((float(category.get("weight") or 1.0), clips))
+            if not pool:
+                return None
+            total = sum(weight for weight, _ in pool) or 1.0
+            roll = random.uniform(0, total)
+            acc = 0.0
+            chosen: list[str] = pool[-1][1]
+            for weight, clips in pool:
+                acc += weight
+                if roll <= acc:
+                    chosen = clips
+                    break
+            window = int(self.action_config.get("noRepeatWindow") or 2)
+            recent = set(self.recent_actions[-window:]) if window > 0 else set()
+            available = [clip for clip in chosen if clip not in recent] or chosen
+            clip = random.choice(available)
+            self.recent_actions.append(clip)
+            self.recent_actions = self.recent_actions[-8:]
+            return clip
 
         def _apply_glove(self, closed: bool) -> None:
             """Closed fist while the button is held, open hand otherwise.
@@ -580,13 +906,29 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             if self.animation_timer.interval() != wanted:
                 self.animation_timer.setInterval(wanted)
 
+        def _frame_bytes(self, frame: str) -> bytes:
+            cached = self.frame_sources.get(frame)
+            if cached is not None:
+                self.frame_sources.move_to_end(frame)
+                return cached
+            data = (self.asset_root / frame).read_bytes()
+            self.frame_sources[frame] = data
+            while len(self.frame_sources) > RAW_FRAME_CACHE:
+                self.frame_sources.popitem(last=False)
+            return data
+
         def _pixmap(self, frame: str) -> QPixmap:
             cached = self.decoded_frames.get(frame)
             if cached is not None:
                 self.decoded_frames.move_to_end(frame)
                 return cached
             pixmap = QPixmap()
-            if not pixmap.loadFromData(self.frame_sources[frame], "WEBP"):
+            try:
+                data = self._frame_bytes(frame)
+            except OSError as error:
+                print(f"Unable to read BigFish frame {frame}: {error}", file=sys.stderr)
+                return QPixmap()
+            if not pixmap.loadFromData(data, "WEBP"):
                 raise RuntimeError(f"Unable to load BigFish frame: {frame}")
             self.decoded_frames[frame] = pixmap
             while len(self.decoded_frames) > DECODED_FRAME_CACHE:
@@ -611,11 +953,13 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.update()
 
         def _play_idle_micro(self) -> None:
-            if self.reduced_motion:
+            if self.reduced_motion or self.sleeping:
                 return
             previous_frame = self.model.frame
             previous_clip = self.model.active_clip_name
-            self.model.play_idle_micro(random.randrange(max(1, len(self.model.idle_micro_clips))))
+            clip = self._pick_idle_clip()
+            if clip is not None:
+                self.model.play_overlay(clip)
             self._sync_frame_transition(previous_frame, previous_clip)
             self.update()
             self._schedule_micro()
@@ -638,7 +982,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.fade_from_pixmap = None
                 return
             self.fade_from_pixmap = (
-                self._pixmap(previous_frame) if previous_frame in self.frame_sources else None
+                self._pixmap(previous_frame) if previous_frame in self.frame_names else None
             )
             self.fade_started = time.monotonic()
             self.fade_duration = duration
@@ -693,16 +1037,25 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self._schedule_micro()
 
         def _schedule_micro(self) -> None:
-            if self.reduced_motion:
+            if self.reduced_motion or self.sleeping:
                 self.micro_timer.stop()
                 return
-            lower, upper = self.model.idle_micro_interval(self.activity_level)
+            intervals = self.action_config.get("intervalsMs") or {}
+            pair = intervals.get(self.activity_level) or [25000, 45000]
+            try:
+                lower, upper = int(pair[0]), int(pair[1])
+            except (TypeError, ValueError, IndexError):
+                lower, upper = 25000, 45000
+            if upper <= lower:
+                upper = lower + 1000
             self.micro_timer.start(self.model.overlay_remaining_ms + random.randint(lower, upper))
 
         def _bubble_visible(self) -> bool:
             if self.bubble_mode == "hidden":
                 return False
             if self.bubble_mode == "always":
+                return True
+            if self.bubble_override:
                 return True
             if len(self.tasks) >= 2:
                 return any(task.get("state") in self.bubble_states for task in self.tasks)
@@ -719,8 +1072,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             pet_width = round(int(manifest["maxFrameWidth"]) * self.scale)
             pet_height = round(int(manifest["maxFrameHeight"]) * self.scale)
             if self._bubble_visible():
-                bubble_width = round(420 * self.bubble_scale)
-                bubble_height = self._card_height()
+                bubble_width, bubble_height = self._bubble_measure()
                 self.setFixedSize(max(pet_width + 50, bubble_width + 28), pet_height + bubble_height + 34)
             else:
                 self.setFixedSize(pet_width + 50, pet_height + 26)
@@ -757,8 +1109,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             return self._pet_offset_x(pet_width), offset_y, pet_width, pet_height
 
         def _bubble_rect(self) -> tuple[int, int, int, int]:
-            card_width = round(420 * self.bubble_scale)
-            card_height = self._card_height()
+            card_width, card_height = self._bubble_measure()
             pet_width, _ = self._pet_size()
             pet_center_x = self._pet_offset_x(pet_width) + pet_width // 2
             margin = 14
@@ -842,19 +1193,93 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         def _now_ms() -> int:
             return int(time.monotonic() * 1000)
 
-        def _current_card(self) -> tuple[str, str, str] | None:
+        def _active_status(self) -> tuple[str, str, str]:
             now_ms = self._now_ms()
             if self.overlay_message and (
                 self.overlay_deadline_ms is None or now_ms < self.overlay_deadline_ms
             ):
-                return self.overlay_message, self.overlay_detail, self.overlay_state or self.status_state
+                return (
+                    self.overlay_message,
+                    self.overlay_detail,
+                    self.overlay_state or self.status_state or self.model.base_state or "IDLE",
+                )
             if self.status_message and (
                 self.status_deadline_ms is None or now_ms < self.status_deadline_ms
             ):
-                return self.status_message, self.status_detail, self.status_state
-            if self.balance_summary:
-                return "大肥鱼陪你待命", "DSH · 等待下一次任务", "IDLE"
-            return None
+                return (
+                    self.status_message,
+                    self.status_detail,
+                    self.status_state or self.model.base_state or "IDLE",
+                )
+            return "", "", self.model.base_state or "IDLE"
+
+        def _current_scene(self) -> str:
+            now_ms = self._now_ms()
+            if self.bubble_override:
+                deadline = self.bubble_override.get("deadline")
+                if deadline is None or now_ms < deadline:
+                    return str(self.bubble_override.get("scene") or "status")
+                self.bubble_override = None
+                self._clear_meme()
+            bindings = self.bubble_spec.get("bindings") or {}
+            if len(self.tasks) >= 2 and self._bubble_visible():
+                return str(bindings.get("MULTI_TASK") or "tasks")
+            message, _detail, state = self._active_status()
+            if not message and self.balance_summary:
+                return str(bindings.get("BALANCE") or "balance")
+            return str(bindings.get(state) or bindings.get("IDLE") or "status")
+
+        def _card_data(self) -> dict[str, Any]:
+            message, detail, state = self._active_status()
+            if not message:
+                # The initial status has a short TTL. With bubbleMode "always"
+                # the card stays on screen, so an empty status would leave a
+                # blank white box with only the state dot. Fall back to the
+                # same standby line the balance footer used to show.
+                message = "大肥鱼陪你待命"
+                detail = "DSH · 等待下一次任务"
+                state = "IDLE"
+            data: dict[str, Any] = {
+                "state": state,
+                "message": message,
+                "detail": detail,
+                "taskTitle": f"{len(self.tasks)} 个任务进行中",
+                "tasks": self.tasks,
+                "balance": self.balance_summary,
+                "labels": self.LABELS,
+                "stocks": self.stock_snapshot,
+                "randomLine": self.last_random_line,
+            }
+            if self.bubble_override and isinstance(self.bubble_override.get("data"), dict):
+                data.update(self.bubble_override["data"])
+            if self.meme_path or self.meme_pixmap:
+                data["memePath"] = self.meme_path
+                data["caption"] = self.meme_caption
+                if self.meme_pixmap is not None:
+                    data["memePixmap"] = self.meme_pixmap
+            return data
+
+        def _bubble_measure(self) -> tuple[int, int]:
+            try:
+                scene = self._current_scene()
+                data = self._card_data()
+                signature = (
+                    scene, self.bubble_scale, data.get("state"), data.get("message"),
+                    data.get("detail"), len(data.get("tasks") or []), data.get("balance"),
+                    data.get("caption"), data.get("randomLine"), self.meme_path,
+                    getattr(self, "bubble_override", None) is not None,
+                )
+                if self._measure_cache is not None and self._measure_cache[0] == signature:
+                    return self._measure_cache[1]
+                result = self.bubble_renderer.measure(scene, data, self.bubble_scale)
+                self._measure_cache = (signature, result)
+                return result
+            except Exception as error:
+                print(f"Unable to measure bubble: {error}", file=sys.stderr)
+                return round(420 * self.bubble_scale), round(84 * self.bubble_scale)
+
+        def _card_height(self) -> int:
+            return self._bubble_measure()[1]
 
         @staticmethod
         def _status_colors(state: str) -> tuple[QColor, QColor]:
@@ -897,13 +1322,6 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.setBrush(foreground)
                 painter.drawEllipse(center_x - 5, center_y - 5, 10, 10)
-
-        def _card_height(self) -> int:
-            footer = 28 if self.balance_summary else 0
-            if len(self.tasks) >= 2:
-                rows = min(len(self.tasks), 3)
-                return round((58 + rows * 26 + footer) * self.bubble_scale)
-            return round((84 + footer) * self.bubble_scale)
 
         def _draw_card_background(
             self,
@@ -1021,73 +1439,18 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             # 平滑缩放：放大/缩小时插值，避免锯齿和模糊
             painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
-            card = self._current_card() if self._bubble_visible() else None
-            card_x, card_y, card_width, card_height = self._bubble_rect()
-            s = self.bubble_scale
-            corner_radius = round(30 * s)
-
-            if len(self.tasks) >= 2 and self._bubble_visible():
-                self._draw_card_background(painter, card_x, card_y, card_width, card_height, corner_radius, s)
-                self._draw_multi_task_card(painter, card_x, card_y, card_width, card_height, s)
-            elif card:
-                title, detail, card_state = card
-                self._draw_card_background(painter, card_x, card_y, card_width, card_height, corner_radius, s)
-                icon_center_x = card_x + card_width - round(39 * s)
-                icon_center_y = card_y + round(42 * s)
-                painter.save()
-                painter.translate(icon_center_x, icon_center_y)
-                painter.scale(s, s)
-                painter.translate(-icon_center_x, -icon_center_y)
-                self._draw_status_icon(painter, card_state, icon_center_x, icon_center_y)
-                painter.restore()
-
-                text_x = card_x + round(24 * s)
-                text_width = max(40, card_width - round(102 * s))
-                title_font = QFont("Microsoft YaHei UI")
-                title_font.setPointSizeF(11.0 * max(1.0, s))
-                title_font.setWeight(QFont.Weight.DemiBold)
-                detail_font = QFont("Microsoft YaHei UI")
-                detail_font.setPointSizeF(9.0 * max(1.0, s))
-                painter.setFont(title_font)
-                painter.setPen(QColor("#25282D"))
-                title_text = QFontMetrics(title_font).elidedText(
-                    title,
-                    Qt.TextElideMode.ElideRight,
-                    text_width,
-                )
-                painter.drawText(
-                    text_x,
-                    card_y + round(15 * s),
-                    text_width,
-                    max(12, round(27 * s)),
-                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                    title_text,
-                )
-                painter.setFont(detail_font)
-                painter.setPen(QColor("#747981"))
-                detail_text = QFontMetrics(detail_font).elidedText(
-                    detail,
-                    Qt.TextElideMode.ElideRight,
-                    text_width,
-                )
-                painter.drawText(
-                    text_x,
-                    card_y + round(43 * s),
-                    text_width,
-                    max(12, round(24 * s)),
-                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                    detail_text,
-                )
-
-            if self.balance_summary and self._bubble_visible():
-                balance_font = QFont("Microsoft YaHei UI")
-                balance_font.setPointSizeF(9.0 * max(1.0, s))
-                painter.setFont(balance_font)
-                painter.setPen(QColor("#53616F"))
-                text_width = card_width - round(32 * s)
-                text = QFontMetrics(balance_font).elidedText(self.balance_summary, Qt.TextElideMode.ElideRight, text_width)
-                painter.drawText(card_x + round(16 * s), card_y + card_height - round(31 * s),
-                                 text_width, round(23 * s), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
+            if self._bubble_visible():
+                card_x, card_y, card_width, card_height = self._bubble_rect()
+                try:
+                    self.bubble_renderer.paint(
+                        painter,
+                        QRectF(card_x, card_y, card_width, card_height),
+                        self._current_scene(),
+                        self._card_data(),
+                        self.bubble_scale,
+                    )
+                except Exception as error:
+                    print(f"Unable to paint bubble: {error}", file=sys.stderr)
 
             pixmap = self._pixmap(self.model.frame)
 
@@ -1150,6 +1513,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                     self._finish_drag()
                     self._move_to_pet(self.pet_x, self.pet_y)
                     self._save_layout()
+                elif self._bubble_contains(event.position().toPoint()):
+                    self._advance_click_bubble()
                 else:
                     self._play_click_interaction(event.position().x(), event.position().y())
             self.drag_origin = None
@@ -1168,24 +1533,37 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             relative_x = max(0.0, x - pet_x)
             relative_y = max(0.0, y - pet_y)
             if relative_y < pet_height * 0.45:
-                self._play_interaction("head_pat", "摸摸也不能让我少干活哦~")
+                region = "head"
             elif relative_x > pet_width * 0.72:
-                self._play_interaction("tail", "尾巴不是进度条啦！")
+                region = "tail"
             else:
-                self._play_interaction("poke", "戳我干嘛，任务还在跑呢")
+                region = "body"
+            pool = (self.action_config.get("click") or {}).get(region) or {}
+            clips = [clip for clip in pool.get("clips") or [] if clip in self.model.clips]
+            clip = random.choice(clips) if clips else ("head_pat" if region == "head" else "poke")
+            lines = [str(line) for line in pool.get("lines") or [] if str(line).strip()]
+            line = random.choice(lines) if lines else self._random_line()
+            self._play_interaction(clip, line)
 
         def _play_interaction(self, clip_name: str, message: str) -> None:
             previous_frame, previous_clip = self.model.frame, self.model.active_clip_name
-            if not self.reduced_motion and not self.model.play_interaction(clip_name, self._now_ms()):
-                return
+            if clip_name in self.model.clips and not self.reduced_motion:
+                if not self.model.play_interaction(clip_name, self._now_ms()):
+                    return
             self._sync_frame_transition(previous_frame, previous_clip)
             self._show_overlay(message, self.status_detail, self.status_state, 1800)
+            self._set_click_bubble(message)
             self._schedule_micro()
             self.update()
 
         def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
             if event.button() == Qt.MouseButton.LeftButton:
-                self._play_interaction("head_pat", "好啦好啦，知道你喜欢我~")
+                pool = (self.action_config.get("click") or {}).get("double") or {}
+                clips = [clip for clip in pool.get("clips") or [] if clip in self.model.clips]
+                lines = [str(line) for line in pool.get("lines") or [] if str(line).strip()]
+                clip = random.choice(clips) if clips else "head_pat"
+                line = random.choice(lines) if lines else "好啦好啦，知道你喜欢我~"
+                self._play_interaction(clip, line)
 
         def contextMenuEvent(self, event: Any) -> None:
             menu = QMenu(self)
@@ -1203,6 +1581,18 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 action.setCheckable(True)
                 action.setChecked(abs(self.bubble_scale - bubble_scale) < 0.05)
                 bubble_size_actions[action] = bubble_scale
+            action_menu = menu.addMenu("动作")
+            action_map = {}
+            for entry in self.action_config.get("menu") or []:
+                clip = str(entry.get("id") or "")
+                if clip not in self.model.clips:
+                    continue
+                action = action_menu.addAction(str(entry.get("label") or clip))
+                action_map[action] = clip
+            if not action_map:
+                action_menu.setEnabled(False)
+            sleep_action = menu.addAction("起来" if self.sleeping else "睡觉")
+            meme_action = menu.addAction("斗图")
             reduced_action = menu.addAction("减少动态")
             reduced_action.setCheckable(True)
             reduced_action.setChecked(self.reduced_motion)
@@ -1223,6 +1613,12 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self._move_to_pet(self.pet_x, self.pet_y)
                 self._save_layout()
                 emit_reply("settings", bubbleScale=self.bubble_scale)
+            elif selected in action_map:
+                self._play_model_overlay(action_map[selected])
+            elif selected == sleep_action:
+                self._toggle_sleep()
+            elif selected == meme_action:
+                emit_reply("meme-request")
             elif selected == reduced_action:
                 self._set_reduced_motion(reduced_action.isChecked())
                 self._save_layout()

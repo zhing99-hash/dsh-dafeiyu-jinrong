@@ -3,6 +3,72 @@
 > This is release history. For installation, use the [latest stable release](https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/releases/latest), not commands from older entries.
 > 上游历史见 [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)。
 
+## 0.4.0 · 2026-11-11
+
+### Added
+
+- **大肥鱼工坊**：左侧栏新增「大肥鱼工坊」入口，主面板打开整页编辑器，
+  分「气泡 / 动作 / 斗图」三栏；保存后桌宠立即生效。
+- **可编辑气泡**：气泡变成数据驱动 spec——主题（经典/手账/漫画/霓虹/玻璃）、
+  场景、行与模块（文本/图标/图片/任务/分割线/留白）、点击序列、随机台词。
+  默认 spec 复刻现有白卡片，升级后外观不变。Qt 侧新增 `BubbleRenderer`，
+  与编辑器共用同一份 spec；「预览」由桌宠离屏渲染 PNG，不在网页里做第二套排版。
+- **动作包**：新增 8 个 in-place clip（悠闲哼歌、照镜子、摇扇纳凉、玩魔方、
+  拆礼物、开心跃动、害羞惊讶、傲娇生气），共 24 个 clip；`assets/actions.json`
+  管分类权重、点击分区池、双击、睡觉/起来和右键动作菜单。Helper 只加载实际
+  存在的 clip，未知 clip 会被忽略，为后续动作包预留。
+- **按需加载**：不再在启动时把 24 个 clip 的全部 WebP 读进内存；只解码每个
+  clip 的首帧做可用性校验，播放时按需读帧，raw bytes（180 帧）和 decoded
+  pixmap（24 帧）都走 LRU。24 clip 的资产体积不再等于启动内存。
+- **斗图**：优先使用已安装的 `dsh-meme` 只读图库；没有时使用
+  `~/.dsh/dafeiyu/memes` 本地图库。气泡支持 PNG/GIF 表情、点击换一张；
+  右键「斗图」立即来一张。聊天里出现 `[表情: …]` 或图片时，桌宠只读地回一张
+  （不会往聊天里发消息），可用设置页「斗图反应」关闭。
+- Host 端点：`/bubble`、`/preview`、`/bubble-preview.png`、`/actions`、
+  `/actions/play`、`/memes`、`/memes/image`、`/memes/pick`、
+  `/companion/diagnostics`（全部只接受本机请求）。
+- 数据落在 `$DSH_HOME/dafeiyu/`：`bubble.json`、`actions.json`、`memes/`、
+  `preview.png`；升级不丢。
+
+### Changed
+
+- Helper 启动时会收到带 `bubble` / `actions` 的 CONFIG，不再只靠环境变量。
+- 点击反应、空闲小动作和睡觉从固定三档改为配置驱动；`animation_model`
+  的点击响应不再限制为三个内置 clip。
+- 动作/气泡配置损坏时回退默认并在日志里说明，不会白屏。
+
+### Fixed
+
+- Helper 资产缓存现在按 `pet-manifest.json` 的 SHA-256 刷新。此前只按版本目录
+  判断，同版本 repack 后的新 clip 会被旧的 16-clip 缓存挡住，ACTION 被静默忽略。
+- 工作室「试播」的动作会锁定 3 秒；宿主在工作状态下的高频 `state` tick 不再
+  立刻清掉 overlay，所以点新动作能真正看到。
+- 状态 TTL 结束后 `bubbleMode: always` 不再显示只有状态点的空白卡片，而是回落
+  到「大肥鱼陪你待命」。
+
+### Tests
+
+- 新增气泡 spec、动作配置、表情库、工坊 API、聊天梗提取的 Node 测试；
+  全套 201 项通过。
+
+## 0.3.3 · 2026-11-04
+
+### Added
+
+- 配套面板控制端点 `GET/POST /plugins/dsh-dafeiyu-jinrong/market-view`：
+  `GET` 返回当前视角序号、当前视角和有序视角列表；`POST { "code": "sh603019" }`
+  或 `{ "index": 1 }` 立即把桌宠切到对应视角并重绘气泡。
+  只接受本机请求；行情情绪关闭时返回 503。
+- 行情监视器新增 `selectView()` / `describeView()` / `viewIndex`，`cycleView()`
+  复用同一套立即重绘逻辑。自选股面板（`dsh-dafeiyu-stockpanel`）用它做
+  Tab 双向同步：面板里按 Tab，桌宠跟着切；桌宠按 Tab，面板也跟着切。
+
+### Tests
+
+- 新增 `test/market-view-endpoint.test.js`，覆盖 GET、按代码/序号选择、
+  未知代码不移动、非本机/跨域拒绝、行情关闭 503。
+- `test/market-view.test.js` 增加 `selectView()` / `describeView()` 用例。
+
 ## 0.3.2 · 2026-11-03
 
 ### Fixed

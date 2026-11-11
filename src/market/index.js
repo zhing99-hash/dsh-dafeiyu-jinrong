@@ -277,6 +277,29 @@ export function createMarketMonitor({
     timer?.unref?.()
   }
 
+  /**
+   * Repaint the current view from the last poll so a key press, a companion
+   * panel click or a POST to the market-view endpoint feels instant instead of
+   * waiting for the next tick.
+   */
+  function emitView() {
+    const cfg = config()
+    const views = viewList(cfg)
+    if (viewIndex >= views.length) viewIndex = 0
+    const view = views[viewIndex]
+    if (!view || lastQuotes.size === 0) return view
+    const focusQuote = lastQuotes.get(MARKET_DEFS[cfg.focus].indexCodes[0])
+    const message = view.kind === 'stock'
+      ? stockStateMessage(view, lastQuotes, focusQuote, lineSeed)
+      : lastIndexMessage
+    if (message) {
+      lastViewDetail = message.detail
+      lastSentAt = now()
+      send(message)
+    }
+    return view
+  }
+
   return {
     get snapshot() {
       return lastSnapshot
@@ -303,28 +326,62 @@ export function createMarketMonitor({
       const views = viewList(config())
       return views[viewIndex] ?? views[0]
     },
+    /** Zero-based index in `viewList`: 0 is the whole market. */
+    get viewIndex() {
+      return viewIndex
+    },
     /**
      * Advance the bubble: 总盘 → 自选1 → 自选2 → … → 总盘.
      * Re-renders from the last poll so a key press feels instant instead of
      * waiting up to one poll interval.
      */
     cycleView({ back = false } = {}) {
-      const cfg = config()
-      const views = viewList(cfg)
+      const views = viewList(config())
+      if (views.length === 0) return undefined
       viewIndex = (viewIndex + (back ? -1 : 1) + views.length) % views.length
-      const view = views[viewIndex]
-      if (lastQuotes.size > 0) {
-        const focusQuote = lastQuotes.get(MARKET_DEFS[cfg.focus].indexCodes[0])
-        const message = view.kind === 'stock'
-          ? stockStateMessage(view, lastQuotes, focusQuote, lineSeed)
-          : lastIndexMessage
-        if (message) {
-          lastViewDetail = message.detail
-          lastSentAt = now()
-          send(message)
-        }
+      return emitView()
+    },
+    /**
+     * Jump to one view by 0-based index or by stock code.
+     *
+     * The companion stock panel uses the code form so a watchlist reorder
+     * cannot silently point the pet at a different stock. An unknown code
+     * records nothing and returns the current view, which keeps the local
+     * endpoint a pure navigation call rather than a validation error.
+     */
+    selectView({ index, code } = {}) {
+      const views = viewList(config())
+      if (views.length === 0) return undefined
+      // The watchlist can shrink under a saved index (the user deleted the
+      // stock the bubble was showing); clamp before any early return so an
+      // unknown code can never read past the array.
+      if (viewIndex >= views.length) viewIndex = 0
+      let next = viewIndex
+      if (code !== undefined) {
+        const normalized = normalizeCode(code)
+        const found = views.findIndex((view) => view.kind === 'stock' && view.code === normalized)
+        if (found < 0) return views[viewIndex]
+        next = found
+      } else if (Number.isInteger(index)) {
+        next = Math.min(views.length - 1, Math.max(0, index))
       }
-      return view
+      viewIndex = next
+      return emitView()
+    },
+    /** Stable description for the companion panel's market-view endpoint. */
+    describeView() {
+      const views = viewList(config())
+      const view = views[viewIndex] ?? views[0] ?? null
+      return {
+        index: viewIndex,
+        view: view ? { kind: view.kind, code: view.code ?? null, alias: view.alias ?? view.label ?? null } : null,
+        views: views.map((entry, position) => ({
+          index: position,
+          kind: entry.kind,
+          code: entry.code ?? null,
+          alias: entry.alias ?? entry.label ?? null,
+        })),
+      }
     },
     /** Per-stock sentiment for the watchlist panel. */
     describeWatchlist(quotes) {

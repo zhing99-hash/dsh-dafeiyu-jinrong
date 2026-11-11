@@ -238,6 +238,38 @@ test('cacheWslBundledHelper heals an exe-only cache from an older release', () =
   assert.ok(existsSync(join(cacheDirectory, 'assets', 'pet-manifest.json')))
 })
 
+test('cacheWslBundledHelper refreshes assets when the packaged manifest changes', () => {
+  const root = mkdtempSync(join(tmpdir(), 'dsh-dafeiyu-wsl-refresh-'))
+  const source = join(root, 'package', 'dsh-dafeiyu-helper.exe')
+  const assetsSource = join(root, 'package', 'assets')
+  const cacheDirectory = join(root, 'windows-local', 'dsh-dafeiyu', '0.1.12')
+  mkdirSync(join(root, 'package'), { recursive: true })
+  mkdirSync(join(assetsSource, 'pet'), { recursive: true })
+  writeFileSync(source, 'helper-binary')
+  const sourceManifest = join(assetsSource, 'pet-manifest.json')
+  writeFileSync(sourceManifest, '{"clips":{"old":{}}}')
+
+  let treeCopies = 0
+  const options = {
+    bundledPath: source,
+    assetsSource,
+    version: '0.1.12',
+    localAppData: () => join(root, 'windows-local'),
+    copyTree: (from, to) => { treeCopies += 1; cpSync(from, to, { recursive: true }) },
+  }
+  cacheWslBundledHelper(options)
+  assert.equal(treeCopies, 1)
+  // Same version, different action pack: the manifest fingerprint must force a
+  // refresh, otherwise the frozen helper keeps ignoring the new ACTION clips.
+  writeFileSync(sourceManifest, '{"clips":{"new":{}}}')
+  cacheWslBundledHelper(options)
+  assert.equal(treeCopies, 2)
+  assert.equal(
+    readFileSync(join(cacheDirectory, 'assets', 'pet-manifest.json'), 'utf8'),
+    '{"clips":{"new":{}}}',
+  )
+})
+
 test('WSL headless mode uses the Linux helper so event-log paths stay on Linux', () => {
   assert.deepEqual(resolve({ isWslEnv: true, headless: true }), {
     command: linuxBundledPath,

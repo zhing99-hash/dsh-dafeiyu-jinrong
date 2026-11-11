@@ -1,7 +1,7 @@
 {
   "name": "dsh-dafeiyu-jinrong",
-  "version": "0.3.2",
-  "description": "Desktop BigFish companion driven by DeepSeek Harness session events, with A-share / Hong Kong / US market sentiment and price alerts.",
+  "version": "0.4.0",
+  "description": "Desktop BigFish companion driven by DeepSeek Harness session events, with market sentiment, an editable bubble studio, action packs and meme battles.",
   "author": "QCYTSN",
   "type": "module",
   "main": "src/index.js",
@@ -17,6 +17,7 @@
     "lib/client.js",
     "runtime/helper.py",
     "runtime/animation_model.py",
+    "runtime/bubble.py",
     "runtime/layout_store.py",
     "runtime/asset_paths.py",
     "runtime/pet_geometry.py",
@@ -30,8 +31,12 @@
     "scripts/generate_notification_sounds.py",
     "scripts/test-packaged-helper.mjs",
     "assets/pet/",
+    "assets/icon-180.png",
     "assets/dsh-pet-LICENSE.txt",
     "assets/pet-manifest.json",
+    "assets/bubble-default.json",
+    "assets/bubble-presets.json",
+    "assets/actions.json",
     "assets/sounds/",
     "assets/cursor_grab.cur",
     "assets/cursor_grabbing.cur",
@@ -91,12 +96,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/QCYTSN/dsh-dafeiyu.git"
+    "url": "git+https://github.com/zhing99-hash/dsh-dafeiyu-jinrong.git"
   },
   "bugs": {
-    "url": "https://github.com/QCYTSN/dsh-dafeiyu/issues"
+    "url": "https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/issues"
   },
-  "homepage": "https://github.com/QCYTSN/dsh-dafeiyu#readme",
+  "homepage": "https://github.com/zhing99-hash/dsh-dafeiyu-jinrong#readme",
   "publishConfig": {
     "access": "public"
   },

@@ -1,0 +1,47 @@
+{
+  "classic": {
+    "label": "经典",
+    "theme": {
+      "background": "#FCFCFD", "border": "#DADDE2", "borderWidth": 1,
+      "text": "#25282D", "muted": "#747981", "accent": "#3478F6",
+      "radius": 30, "padding": 18, "shadow": true, "opacity": 0.97,
+      "font": "Microsoft YaHei UI", "titleSize": 11, "bodySize": 9
+    }
+  },
+  "paper": {
+    "label": "手账",
+    "theme": {
+      "background": "#FFF9EC", "border": "#E7D7B5", "borderWidth": 1,
+      "text": "#3B3226", "muted": "#8A7A5E", "accent": "#C58A2A",
+      "radius": 18, "padding": 18, "shadow": true, "opacity": 0.98,
+      "font": "Microsoft YaHei UI", "titleSize": 11, "bodySize": 9
+    }
+  },
+  "comic": {
+    "label": "漫画",
+    "theme": {
+      "background": "#FFE66D", "border": "#1B1B1B", "borderWidth": 3,
+      "text": "#111111", "muted": "#4A4A4A", "accent": "#E5484D",
+      "radius": 22, "padding": 16, "shadow": false, "opacity": 1,
+      "font": "Microsoft YaHei UI", "titleSize": 12, "bodySize": 10
+    }
+  },
+  "neon": {
+    "label": "霓虹",
+    "theme": {
+      "background": "#101528", "border": "#2DE2E6", "borderWidth": 2,
+      "text": "#E8F7FF", "muted": "#8FB8C9", "accent": "#FF3CAC",
+      "radius": 24, "padding": 18, "shadow": true, "opacity": 0.95,
+      "font": "Microsoft YaHei UI", "titleSize": 11, "bodySize": 9
+    }
+  },
+  "glass": {
+    "label": "玻璃",
+    "theme": {
+      "background": "#FFFFFF", "border": "#FFFFFF", "borderWidth": 1,
+      "text": "#1F2937", "muted": "#6B7280", "accent": "#4C78E8",
+      "radius": 26, "padding": 18, "shadow": true, "opacity": 0.78,
+      "font": "Microsoft YaHei UI", "titleSize": 11, "bodySize": 9
+    }
+  }
+}

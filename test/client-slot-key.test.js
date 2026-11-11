@@ -98,7 +98,10 @@ test('client apply does not throw when the slot contract changes or fails', asyn
     slots: {
       inject(name, register) {
         injectAttempted += 1
-        assert.ok(['plugins.bundle.config', 'settings.plugins.tab', 'settings.plugin.item'].includes(name))
+        assert.ok([
+          'plugins.bundle.config', 'settings.plugins.tab', 'settings.plugin.item',
+          'main', 'sidebar.panellist',
+        ].includes(name))
         deferred.push(register)
       },
       register() {
@@ -109,10 +112,10 @@ test('client apply does not throw when the slot contract changes or fails', asyn
   }
 
   assert.doesNotThrow(() => client.apply(ctx))
-  assert.equal(injectAttempted, 3)
+  assert.equal(injectAttempted, 5)
   assert.equal(registerAttempted, 0)
   for (const register of deferred) assert.doesNotThrow(register)
-  assert.equal(registerAttempted, 3)
+  assert.equal(registerAttempted, 5)
 })
 
 test('client apply also contains a synchronous inject failure', async () => {

@@ -48,6 +48,7 @@ fi
   --workpath "$work" \
   --specpath "$work" \
   --paths "$project_root/runtime" \
+  --hidden-import bubble \
   "$entry"
 
 executable="$output/dsh-dafeiyu-helper"

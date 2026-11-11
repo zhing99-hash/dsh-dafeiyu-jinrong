@@ -23,6 +23,17 @@ export const CompanionMessageKind = Object.freeze({
   SETTINGS: 'settings',
   // Helper → host: the user pressed Tab on the pet, advance the bubble view.
   CYCLE: 'cycle',
+  // Companion surfaces added in 0.4: custom bubble spec, meme cards, action
+  // playback and the editor's offscreen preview.
+  BUBBLE: 'bubble',
+  MEME: 'meme',
+  ACTION: 'action',
+  INTERACTION: 'interaction',
+  BUBBLE_CLICK: 'bubble-click',
+  MEME_REQUEST: 'meme-request',
+  PREVIEW: 'preview',
+  PREVIEW_READY: 'preview-ready',
+  ACTION_DONE: 'action-done',
   PING: 'ping',
   PONG: 'pong',
   CLOSED: 'closed',

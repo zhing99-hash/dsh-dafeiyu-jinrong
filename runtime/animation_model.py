@@ -135,7 +135,9 @@ class AnimationModel:
         self._activate(self._underlay_clip_name())
 
     def play_interaction(self, clip_name: str, now_ms: int) -> bool:
-        if clip_name not in INTERACTION_CLIPS or self.pulse_state is not None:
+        # Action packs may add click responses beyond the three built-ins, so
+        # accept any known clip while keeping the cooldown and drag guards.
+        if clip_name not in self.clips or self.pulse_state is not None:
             return False
         if self.overlay_clip_name in INTERACTION_CLIPS | DRAG_CLIPS:
             return False

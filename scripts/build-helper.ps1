@@ -38,6 +38,7 @@ try {
     --workpath $work `
     --specpath $work `
     --paths (Join-Path $projectRoot 'runtime') `
+    --hidden-import bubble `
     $entry
   $buildExit = $LASTEXITCODE
 } finally {
