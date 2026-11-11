@@ -31,6 +31,7 @@
     "scripts/generate_notification_sounds.py",
     "scripts/test-packaged-helper.mjs",
     "assets/pet/",
+    "assets/icon-180.png",
     "assets/dsh-pet-LICENSE.txt",
     "assets/pet-manifest.json",
     "assets/bubble-default.json",
@@ -95,12 +96,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/QCYTSN/dsh-dafeiyu.git"
+    "url": "git+https://github.com/zhing99-hash/dsh-dafeiyu-jinrong.git"
   },
   "bugs": {
-    "url": "https://github.com/QCYTSN/dsh-dafeiyu/issues"
+    "url": "https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/issues"
   },
-  "homepage": "https://github.com/QCYTSN/dsh-dafeiyu#readme",
+  "homepage": "https://github.com/zhing99-hash/dsh-dafeiyu-jinrong#readme",
   "publishConfig": {
     "access": "public"
   },
