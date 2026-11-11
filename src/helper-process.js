@@ -11,7 +11,9 @@ import {
   rmSync,
   statSync,
   unlinkSync,
+  writeFileSync,
 } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { homedir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
@@ -245,8 +247,19 @@ function cacheWslBundledHelper({
   // executable (see runtime/helper.py bundle_root), so the cache carries them
   // and the npm package ships a single copy instead of embedding three.
   const cachedManifest = resolve(cacheDirectory, 'assets', 'pet-manifest.json')
+  const cachedManifestHash = resolve(cacheDirectory, 'assets', '.manifest.sha256')
+  const sourceHash = createHash('sha256')
+    .update(readFileSync(resolve(assetsSource, 'pet-manifest.json')))
+    .digest('hex')
+  let cachedHash = null
+  try {
+    cachedHash = readFileSync(cachedManifestHash, 'utf8').trim()
+  } catch {
+    // Missing/unreadable marker means the cache predates asset fingerprints.
+  }
   const exeCurrent = fileExists(cachedPath) && fileStat(cachedPath).size === sourceSize
-  if (exeCurrent && fileExists(cachedManifest)) return cachedPath
+  const assetsCurrent = fileExists(cachedManifest) && cachedHash === sourceHash
+  if (exeCurrent && assetsCurrent) return cachedPath
   makeDirectory(cacheDirectory, { recursive: true })
   if (!exeCurrent) {
     const temporaryPath = `${cachedPath}.${process.pid}.tmp`
@@ -268,7 +281,13 @@ function cacheWslBundledHelper({
       if (fileExists(temporaryPath)) removeFile(temporaryPath)
     }
   }
-  if (!fileExists(cachedManifest)) copyTree(assetsSource, resolve(cacheDirectory, 'assets'), { recursive: true })
+  if (!assetsCurrent) {
+    copyTree(assetsSource, resolve(cacheDirectory, 'assets'), { recursive: true })
+    // Fingerprint the manifest, not the package version: action packs can be
+    // repacked at the same version, and a stale frame cache silently drops the
+    // new clips (the helper ignores ACTION names absent from its manifest).
+    writeFileSync(cachedManifestHash, sourceHash)
+  }
   return cachedPath
 }
 

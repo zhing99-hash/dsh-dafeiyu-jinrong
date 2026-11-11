@@ -449,6 +449,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.overlay_message = ""
             self.overlay_detail = ""
             self.overlay_deadline_ms: int | None = None
+            self.action_until_ms: int | None = None
             self.task = ""
             self.tasks: list[dict[str, Any]] = []
             self.webui_url = os.environ.get("DSH_DAFEIYU_WEBUI_URL", "http://127.0.0.1:3080/")
@@ -536,6 +537,12 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             elif kind == "preview":
                 self._render_preview(message)
             elif kind in {"state", "pulse"}:
+                # A deliberate ACTION preview (studio test button / context menu)
+                # must survive the state ticks that the host sends while a task
+                # is running; otherwise apply_state clears the overlay almost
+                # immediately and the new clip is never visible.
+                if self.action_until_ms is not None and self._now_ms() < self.action_until_ms:
+                    return
                 previous_base_state = self.model.base_state
                 state = str(message.get("state", "IDLE"))
                 if self.sleeping and state != "IDLE":
@@ -718,6 +725,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
         def _play_action_message(self, message: dict[str, Any]) -> None:
             clip = str(message.get("clip") or "")
             if clip in self.model.clips:
+                frames = self.model.clips[clip].frames
+                frame_ms = int(getattr(self.model.clips[clip], "frame_ms", 42) or 42)
+                self.action_until_ms = self._now_ms() + min(3000, len(frames) * frame_ms + 200)
                 self._play_model_overlay(clip)
 
         def _render_preview(self, message: dict[str, Any]) -> None:
