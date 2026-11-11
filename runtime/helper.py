@@ -36,6 +36,9 @@ STATES = {"IDLE", "THINKING", "WORKING", "WAITING", "SUCCESS", "ERROR", "DISCONN
 # 24 fps set resident would need well over a gigabyte. Frames are read from disk
 # once as compressed bytes and decoded through a bounded cache instead.
 DECODED_FRAME_CACHE = 24
+# Raw WebP bytes are cheap to keep but the full 24-clip set is ~83 MB. Keep a
+# sliding window of recently played frames instead of preloading every clip.
+RAW_FRAME_CACHE = 180
 
 
 def configure_qt_platform() -> None:
@@ -419,18 +422,15 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             else:
                 self.bubble_states = list(self.layout.get("bubbleStates", ["SUCCESS", "ERROR", "WAITING"]))
             self.model = AnimationModel(manifest)
-            self.frame_sources: dict[str, bytes] = {}
-            for clip in self.model.clips.values():
-                for frame in clip.frames:
-                    if frame in self.frame_sources:
-                        continue
-                    try:
-                        self.frame_sources[frame] = (asset_root / frame).read_bytes()
-                    except OSError as error:
-                        raise RuntimeError(f"Unable to load BigFish frame: {frame}") from error
+            self.asset_root = asset_root
+            self.frame_names = {
+                frame for clip in self.model.clips.values() for frame in clip.frames
+            }
+            self.frame_sources: OrderedDict[str, bytes] = OrderedDict()
             self.decoded_frames: OrderedDict[str, QPixmap] = OrderedDict()
             # Fail here, not on the first paint, when the assets are unreadable or
-            # the bundled Qt has no WebP image plugin.
+            # the bundled Qt has no WebP image plugin. Only the first frame of
+            # each clip is decoded; all other frames load on demand below.
             for clip in self.model.clips.values():
                 if clip.frames:
                     self._pixmap(clip.frames[0])
@@ -896,13 +896,29 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             if self.animation_timer.interval() != wanted:
                 self.animation_timer.setInterval(wanted)
 
+        def _frame_bytes(self, frame: str) -> bytes:
+            cached = self.frame_sources.get(frame)
+            if cached is not None:
+                self.frame_sources.move_to_end(frame)
+                return cached
+            data = (self.asset_root / frame).read_bytes()
+            self.frame_sources[frame] = data
+            while len(self.frame_sources) > RAW_FRAME_CACHE:
+                self.frame_sources.popitem(last=False)
+            return data
+
         def _pixmap(self, frame: str) -> QPixmap:
             cached = self.decoded_frames.get(frame)
             if cached is not None:
                 self.decoded_frames.move_to_end(frame)
                 return cached
             pixmap = QPixmap()
-            if not pixmap.loadFromData(self.frame_sources[frame], "WEBP"):
+            try:
+                data = self._frame_bytes(frame)
+            except OSError as error:
+                print(f"Unable to read BigFish frame {frame}: {error}", file=sys.stderr)
+                return QPixmap()
+            if not pixmap.loadFromData(data, "WEBP"):
                 raise RuntimeError(f"Unable to load BigFish frame: {frame}")
             self.decoded_frames[frame] = pixmap
             while len(self.decoded_frames) > DECODED_FRAME_CACHE:
@@ -956,7 +972,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.fade_from_pixmap = None
                 return
             self.fade_from_pixmap = (
-                self._pixmap(previous_frame) if previous_frame in self.frame_sources else None
+                self._pixmap(previous_frame) if previous_frame in self.frame_names else None
             )
             self.fade_started = time.monotonic()
             self.fade_duration = duration
