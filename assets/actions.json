@@ -16,28 +16,37 @@
     "tail": "戳尾巴",
     "eat_token": "吃 Token",
     "idle_stretch": "伸懒腰",
-    "idle_yawn": "打哈欠"
+    "idle_yawn": "打哈欠",
+    "idle_hum": "悠闲哼歌",
+    "idle_mirror": "照镜子",
+    "idle_fan": "摇扇纳凉",
+    "play_cube": "玩魔方",
+    "play_gift": "拆礼物",
+    "click_happy": "开心跃动",
+    "click_shy": "害羞惊讶",
+    "click_angry": "傲娇生气"
   },
   "categories": [
-    { "id": "micro", "label": "小动作", "weight": 40, "clips": ["idle_stretch", "idle_yawn", "eat_token"] },
-    { "id": "idle", "label": "发呆", "weight": 40, "clips": ["idle"] },
+    { "id": "micro", "label": "小动作", "weight": 35, "clips": ["idle_stretch", "idle_yawn", "eat_token", "idle_hum", "idle_mirror", "idle_fan"] },
+    { "id": "play", "label": "玩耍", "weight": 20, "clips": ["play_cube", "play_gift"] },
+    { "id": "idle", "label": "发呆", "weight": 25, "clips": ["idle"] },
     { "id": "response", "label": "自娱自乐", "weight": 20, "clips": ["head_pat", "poke", "tail"] }
   ],
   "click": {
     "head": {
-      "clips": ["head_pat"],
+      "clips": ["head_pat", "click_happy", "click_shy"],
       "lines": ["摸摸也不能让我少干活哦~", "再摸就掉鳞片了", "头可摸，进度不能停"]
     },
     "body": {
-      "clips": ["poke"],
+      "clips": ["poke", "click_shy"],
       "lines": ["戳我干嘛，任务还在跑呢", "我在这儿看着呢", "别戳了，在想了"]
     },
     "tail": {
-      "clips": ["tail"],
+      "clips": ["tail", "click_angry"],
       "lines": ["尾巴不是进度条啦！", "别拽尾巴，会短路", "尾巴是装饰，不是按钮"]
     },
     "double": {
-      "clips": ["head_pat", "success"],
+      "clips": ["head_pat", "success", "click_happy"],
       "lines": ["好啦好啦，知道你喜欢我~", "双击也没用，任务还得跑"]
     }
   },
@@ -57,6 +66,14 @@
   "menu": [
     { "id": "idle_stretch", "label": "伸懒腰" },
     { "id": "idle_yawn", "label": "打哈欠" },
+    { "id": "idle_hum", "label": "悠闲哼歌" },
+    { "id": "idle_mirror", "label": "照镜子" },
+    { "id": "idle_fan", "label": "摇扇纳凉" },
+    { "id": "play_cube", "label": "玩魔方" },
+    { "id": "play_gift", "label": "拆礼物" },
+    { "id": "click_happy", "label": "开心跃动" },
+    { "id": "click_shy", "label": "害羞惊讶" },
+    { "id": "click_angry", "label": "傲娇生气" },
     { "id": "eat_token", "label": "吃 Token" },
     { "id": "head_pat", "label": "摸头" },
     { "id": "poke", "label": "戳一下" },
