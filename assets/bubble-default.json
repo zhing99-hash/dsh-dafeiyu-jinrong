@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "theme": {
+    "preset": "classic",
+    "width": 420,
+    "radius": 30,
+    "padding": 18,
+    "background": "#FCFCFD",
+    "border": "#DADDE2",
+    "borderWidth": 1,
+    "shadow": true,
+    "opacity": 0.97,
+    "font": "Microsoft YaHei UI",
+    "text": "#25282D",
+    "muted": "#747981",
+    "accent": "#3478F6",
+    "titleSize": 11,
+    "bodySize": 9
+  },
+  "scenes": {
+    "status": {
+      "name": "任务状态",
+      "ttlMs": 4200,
+      "rows": [
+        {
+          "modules": [
+            { "type": "icon", "field": "state", "size": 46 },
+            { "type": "text", "field": "message", "size": 11, "bold": true, "weight": 1, "maxLines": 2 },
+            { "type": "spacer", "weight": 0.06 }
+          ]
+        },
+        {
+          "modules": [
+            { "type": "text", "field": "detail", "size": 9, "color": "muted", "maxLines": 2 }
+          ]
+        }
+      ]
+    },
+    "tasks": {
+      "name": "多任务",
+      "ttlMs": 0,
+      "rows": [
+        {
+          "modules": [
+            { "type": "text", "field": "taskTitle", "size": 11, "bold": true, "weight": 1 }
+          ]
+        },
+        {
+          "modules": [
+            { "type": "tasks", "max": 3, "size": 9 }
+          ]
+        }
+      ]
+    },
+    "balance": {
+      "name": "余额",
+      "ttlMs": 0,
+      "rows": [
+        {
+          "modules": [
+            { "type": "text", "field": "message", "size": 11, "bold": true, "maxLines": 1, "weight": 1 }
+          ]
+        },
+        {
+          "modules": [
+            { "type": "text", "field": "detail", "size": 9, "color": "muted", "maxLines": 1 }
+          ]
+        },
+        { "modules": [ { "type": "divider" } ] },
+        {
+          "modules": [
+            { "type": "text", "field": "balance", "size": 9, "color": "muted", "maxLines": 1 }
+          ]
+        }
+      ]
+    },
+    "click1": {
+      "name": "首次点击",
+      "ttlMs": 5000,
+      "rows": [
+        {
+          "modules": [
+            { "type": "text", "field": "randomLine", "size": 11, "align": "center", "wrap": true, "maxLines": 3 }
+          ]
+        }
+      ]
+    },
+    "click2": {
+      "name": "再次点击",
+      "ttlMs": 5000,
+      "rows": [
+        {
+          "modules": [
+            { "type": "text", "field": "randomLine", "size": 11, "align": "center", "wrap": true, "maxLines": 3 }
+          ]
+        }
+      ]
+    },
+    "meme": {
+      "name": "斗图",
+      "ttlMs": 8000,
+      "rows": [
+        {
+          "modules": [
+            { "type": "image", "field": "meme", "maxWidth": 300, "maxHeight": 300, "radius": 12, "align": "center" }
+          ]
+        },
+        {
+          "modules": [
+            { "type": "text", "field": "caption", "size": 10, "color": "muted", "align": "center", "wrap": true, "maxLines": 2 }
+          ]
+        }
+      ]
+    }
+  },
+  "bindings": {
+    "IDLE": "status",
+    "THINKING": "status",
+    "WORKING": "status",
+    "WAITING": "status",
+    "SUCCESS": "status",
+    "ERROR": "status",
+    "DISCONNECTED": "status",
+    "MULTI_TASK": "tasks",
+    "BALANCE": "balance",
+    "CLICK": "click1",
+    "MEME": "meme"
+  },
+  "clickSequence": [
+    { "scene": "click1", "weight": 1 },
+    { "scene": "click2", "weight": 1 }
+  ],
+  "randomLines": [
+    { "weight": 20, "lines": ["戳我干嘛，任务还在跑呢", "我在这儿看着呢", "大肥鱼上班中…"] },
+    { "weight": 12, "lines": ["摸摸也不能让我少干活哦~", "再摸就掉鳞片了"] },
+    { "weight": 8, "lines": ["尾巴不是进度条啦！", "别拽尾巴，会短路"] },
+    { "weight": 6, "lines": ["今天的行情，看了吗", "自选股我都帮你盯着"] },
+    { "weight": 4, "lines": ["要不要来张表情包", "斗图吗？我图多"] },
+    { "weight": 2, "lines": ["深潜中，请稍候", "我是一条有理想的鱼"] }
+  ],
+  "limits": {
+    "maxRows": 6,
+    "maxModulesPerRow": 4,
+    "maxTextChars": 200,
+    "maxImageBytes": 8388608
+  }
+}

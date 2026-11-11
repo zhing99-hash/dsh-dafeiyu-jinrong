@@ -32,6 +32,16 @@ They remain subject to the upstream MIT license, bundled verbatim as
 given; the "dsh-pet" name and its project identity belong to their respective
 owners.
 
+## 0.4.0 bubble, action and meme assets
+
+The 0.4.0 studio adds no new character animation frames and does not copy
+`dsh-meme`'s image library. Bubble themes are painted by code; the default
+bubble JSON (`assets/bubble-default.json`), theme presets and action config
+(`assets/actions.json`) are original configuration covered by the MIT code
+license. User-uploaded memes stay under `$DSH_HOME/dafeiyu/memes` and are not
+redistributed with the package. The optional `dsh-meme` integration reads that
+plugin's local paths at runtime; its images remain under dsh-meme's own terms.
+
 ## Legacy BigFish frames (archived, restricted)
 
 The frames previously bundled under `assets/pet/` now live under

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "labels": {
+    "idle": "待机呼吸",
+    "waiting": "等待确认",
+    "thinking": "思考",
+    "working": "工作",
+    "working_search": "搜索中",
+    "working_command": "整理中",
+    "success": "完成庆祝",
+    "error": "垂头叹气",
+    "dragging": "被拎起来",
+    "dragging_release": "落地",
+    "head_pat": "摸头",
+    "poke": "戳一下",
+    "tail": "戳尾巴",
+    "eat_token": "吃 Token",
+    "idle_stretch": "伸懒腰",
+    "idle_yawn": "打哈欠"
+  },
+  "categories": [
+    { "id": "micro", "label": "小动作", "weight": 40, "clips": ["idle_stretch", "idle_yawn", "eat_token"] },
+    { "id": "idle", "label": "发呆", "weight": 40, "clips": ["idle"] },
+    { "id": "response", "label": "自娱自乐", "weight": 20, "clips": ["head_pat", "poke", "tail"] }
+  ],
+  "click": {
+    "head": {
+      "clips": ["head_pat"],
+      "lines": ["摸摸也不能让我少干活哦~", "再摸就掉鳞片了", "头可摸，进度不能停"]
+    },
+    "body": {
+      "clips": ["poke"],
+      "lines": ["戳我干嘛，任务还在跑呢", "我在这儿看着呢", "别戳了，在想了"]
+    },
+    "tail": {
+      "clips": ["tail"],
+      "lines": ["尾巴不是进度条啦！", "别拽尾巴，会短路", "尾巴是装饰，不是按钮"]
+    },
+    "double": {
+      "clips": ["head_pat", "success"],
+      "lines": ["好啦好啦，知道你喜欢我~", "双击也没用，任务还得跑"]
+    }
+  },
+  "sleep": {
+    "enabled": true,
+    "start": ["idle_yawn"],
+    "loop": ["idle"],
+    "end": ["idle_stretch"],
+    "lines": ["好困……我先睡一会儿。", "那我去睡啦，晚安。"],
+    "wakeLines": ["唔……我醒了。", "睡饱啦！"]
+  },
+  "events": {
+    "SUCCESS": ["success"],
+    "ERROR": ["error"],
+    "WAITING": ["waiting"]
+  },
+  "menu": [
+    { "id": "idle_stretch", "label": "伸懒腰" },
+    { "id": "idle_yawn", "label": "打哈欠" },
+    { "id": "eat_token", "label": "吃 Token" },
+    { "id": "head_pat", "label": "摸头" },
+    { "id": "poke", "label": "戳一下" },
+    { "id": "tail", "label": "戳尾巴" },
+    { "id": "success", "label": "庆祝一下" },
+    { "id": "error", "label": "叹气" },
+    { "id": "thinking", "label": "思考" },
+    { "id": "working", "label": "工作" }
+  ],
+  "intervalsMs": {
+    "quiet": [45000, 90000],
+    "normal": [25000, 45000],
+    "lively": [12000, 22000]
+  },
+  "noRepeatWindow": 2,
+  "interactionCooldownMs": 1200
+}

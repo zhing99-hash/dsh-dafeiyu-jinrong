@@ -107,6 +107,7 @@ test('plugin forwards DSH-shaped session events and owns helper shutdown', async
   assert.deepEqual(messages.map((message) => message.kind), [
     'hello',
     'state',
+    'config',
     'state',
     'state',
     'pulse',
@@ -178,9 +179,13 @@ test('live settings keep the active project state without restarting the helper'
 
   const messages = (await readFile(eventLog, 'utf8')).trim().split(/\r?\n/).map(JSON.parse)
   assert.equal(messages.filter((message) => message.kind === 'hello').length, 1)
-  assert.equal(messages.filter((message) => message.kind === 'config').length, 1)
-  assert.equal(messages.find((message) => message.kind === 'config').soundEnabled, false)
-  assert.deepEqual(messages.find((message) => message.kind === 'config').soundStates, ['SUCCESS'])
+  // 0.4 sends one CONFIG at startup so the Helper gets the bubble spec before
+  // any settings change; the live update is the newest CONFIG, not the first.
+  const configs = messages.filter((message) => message.kind === 'config')
+  assert.ok(configs.length >= 1)
+  const liveConfig = configs.at(-1)
+  assert.equal(liveConfig.soundEnabled, false)
+  assert.deepEqual(liveConfig.soundStates, ['SUCCESS'])
   const working = messages.findLast((message) => message.state === 'WORKING')
   assert.equal(working.project, 'active-project')
   assert.equal(working.task, '继续保留这个任务')
@@ -306,10 +311,22 @@ test('a failed settings write keeps the native menu choice in the fallback and r
     })
 
     await waitFor(() => existsSync(fallbackFile))
-    await waitFor(async () => eventLogHasKind(eventLog, 'config'))
+    // The startup CONFIG now exists before the menu change; wait for the
+    // fallback values specifically instead of any CONFIG.
+    await waitFor(async () => {
+      try {
+        const lines = (await readFile(eventLog, 'utf8')).trim().split(/\r?\n/).filter(Boolean)
+        return lines.some((line) => {
+          const message = JSON.parse(line)
+          return message.kind === 'config' && message.scale === 0.6
+        })
+      } catch {
+        return false
+      }
+    })
 
     const messages = (await readFile(eventLog, 'utf8')).trim().split(/\r?\n/).map(JSON.parse)
-    const config = messages.find((message) => message.kind === 'config')
+    const config = messages.findLast((message) => message.kind === 'config')
     assert.equal(config.scale, 0.6)
     assert.equal(config.bubbleScale, 0.9)
     assert.equal(config.reducedMotion, true)

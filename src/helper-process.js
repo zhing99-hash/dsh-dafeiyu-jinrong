@@ -713,6 +713,9 @@ export class HelperProcess {
         this.options.onCycle?.(reply)
         return
       }
+      // Additive 0.4 surfaces (preview-ready, meme-request, bubble-click,
+      // interaction, action-done). Unknown kinds stay forward-compatible.
+      this.options.onMessage?.(reply)
     } catch {
       // Non-protocol stdout is still useful in development logs.
     }

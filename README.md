@@ -68,6 +68,7 @@ dsh plugin --profile web add ".tmp\dsh-dafeiyu-jinrong-0.3.2.tgz"
 | **Tushare（可选）** | 填 token 后用它取 A 股日线，算出真实量比参与个股情绪；不填/填错只影响量比，行情与提醒照常 |
 | 状态仲裁 | 有 DSH 任务时任务优先，任务结束自动回到行情；提醒永远能弹出来 |
 | 交易时段 | A股/港股/美股各自的时段与午休，美股夏令时用 `Intl` 按纽约时区算，不手写规则 |
+| **大肥鱼工坊（0.4+）** | 左侧栏入口打开整页编辑器：可编辑气泡主题/内容、动作权重/点击池、表情包；预览由桌宠真机渲染 |
 
 **开启方式**：设置页 → 养鱼 → 勾选"启用行情情绪"，选主市场，加自选股，填 Tushare token（可留空）。
 
@@ -88,6 +89,29 @@ node scripts/market-snapshot.mjs a --view 1  # 渲染第一只自选股的气泡
 配套面板 `dsh-dafeiyu-stockpanel` 用它做 Tab 双向同步；没有这个端点时
 面板会静默忽略，只做“跟随桌宠视角”的只读同步。
 面板仓库：https://github.com/zhing99-hash/dsh-dafeiyu-stockpanel
+
+### 大肥鱼工坊（0.4+）
+
+左侧栏「大肥鱼工坊」打开一个整页编辑器：
+
+- **气泡**：经典 / 手账 / 漫画 / 霓虹 / 玻璃五套主题，可调宽度、圆角、字体、
+  颜色；场景由行和模块组成（文本 / 图标 / 图片 / 任务 / 分割线 / 留白），
+  支持点击序列和随机台词。默认 spec 复刻旧白卡片，升级后外观不变。
+- **预览**：由桌宠用同一个 `BubbleRenderer` 离屏渲染 PNG，编辑器里看到的就是
+  桌宠真机效果，不是网页仿制。
+- **动作**：空闲动作分类权重、点击分区池、双击、睡觉/起来、右键动作菜单；
+  动作与气泡配置保存在 `$DSH_HOME/dafeiyu/`，升级不丢。
+- **斗图**：优先使用已安装的 `dsh-meme` 只读图库；没装就用本地图库
+  （PNG / GIF / WebP，单张 ≤ 8MB）。右键「斗图」来一张，点气泡换一张；
+  聊天里出现 `[表情: …]` 或图片时桌宠只读回一张，不会往聊天里发消息。
+  设置页「斗图反应」可关闭聊天回图，不影响右键手动斗图。
+- **动作包接口**：`assets/actions.json` 管分类/权重/点击池，`assets/pet-manifest.json`
+  管 clip。后续扩展包按同一接口加 clip 即可，未知 clip 会被忽略。
+
+> 0.4.0 改了 Helper 的气泡/动作代码，源码 `link:` 安装前请先
+> `npm run build:helper`（或直接用 Release 里已打包的 Helper）；只更新
+> `src/` 和 `lib/` 不重建 Helper 时，桌宠仍会跑旧的气泡渲染器。
+
 
 **排错：Helper 起不来 / 提示 "Could not create temporary directory"**
 PyInstaller 打包的 Helper 启动前要把约 100 MB 解包到临时目录。某些 Windows 环境（受限 temp、

@@ -3,6 +3,41 @@
 > This is release history. For installation, use the [latest stable release](https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/releases/latest), not commands from older entries.
 > 上游历史见 [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)。
 
+## 0.4.0 · 2026-11-11
+
+### Added
+
+- **大肥鱼工坊**：左侧栏新增「大肥鱼工坊」入口，主面板打开整页编辑器，
+  分「气泡 / 动作 / 斗图」三栏；保存后桌宠立即生效。
+- **可编辑气泡**：气泡变成数据驱动 spec——主题（经典/手账/漫画/霓虹/玻璃）、
+  场景、行与模块（文本/图标/图片/任务/分割线/留白）、点击序列、随机台词。
+  默认 spec 复刻现有白卡片，升级后外观不变。Qt 侧新增 `BubbleRenderer`，
+  与编辑器共用同一份 spec；「预览」由桌宠离屏渲染 PNG，不在网页里做第二套排版。
+- **动作包接口**：`assets/actions.json` 管理分类权重、点击分区池、双击、
+  睡觉/起来和右键动作菜单；`assets/pet-manifest.json` 仍是 clip 清单。
+  Helper 只加载实际存在的 clip，未知 clip 会被忽略，为后续动作包预留。
+- **斗图**：优先使用已安装的 `dsh-meme` 只读图库；没有时使用
+  `~/.dsh/dafeiyu/memes` 本地图库。气泡支持 PNG/GIF 表情、点击换一张；
+  右键「斗图」立即来一张。聊天里出现 `[表情: …]` 或图片时，桌宠只读地回一张
+  （不会往聊天里发消息），可用设置页「斗图反应」关闭。
+- Host 端点：`/bubble`、`/preview`、`/bubble-preview.png`、`/actions`、
+  `/actions/play`、`/memes`、`/memes/image`、`/memes/pick`、
+  `/companion/diagnostics`（全部只接受本机请求）。
+- 数据落在 `$DSH_HOME/dafeiyu/`：`bubble.json`、`actions.json`、`memes/`、
+  `preview.png`；升级不丢。
+
+### Changed
+
+- Helper 启动时会收到带 `bubble` / `actions` 的 CONFIG，不再只靠环境变量。
+- 点击反应、空闲小动作和睡觉从固定三档改为配置驱动；`animation_model`
+  的点击响应不再限制为三个内置 clip。
+- 动作/气泡配置损坏时回退默认并在日志里说明，不会白屏。
+
+### Tests
+
+- 新增气泡 spec、动作配置、表情库、工坊 API、聊天梗提取的 Node 测试；
+  全套 200 项通过。
+
 ## 0.3.3 · 2026-11-04
 
 ### Added

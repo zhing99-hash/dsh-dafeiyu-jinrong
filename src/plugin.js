@@ -2,6 +2,7 @@ import { createRequire } from 'node:module'
 import { readFileSync, mkdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { homedir } from 'node:os'
+import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import Schema from '@deepseek-ai/schemastery'
 import { CompanionReducer } from './companion-reducer.js'
@@ -13,6 +14,10 @@ import { resolveClientTarget } from './client-target.js'
 import { isLocalRequest, jsonResponse } from './local-http.js'
 import { BALANCE_ENDPOINT, createBalanceQuery, createBalanceMonitor, createBalanceHandler, balanceProviderNamespace } from './balance.js'
 import { createMarketMonitor } from './market/index.js'
+import { createBubbleStore } from './bubble/store.js'
+import { createActionsStore, loadClipCatalog } from './actions/store.js'
+import { createMemeLibrary } from './memes.js'
+import { createCompanionApi } from './companion-api.js'
 import {
   CompanionMessageKind,
   CompanionState,
@@ -31,6 +36,15 @@ export const inject = ['sessions', 'settings']
 export const CONFIG_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/config'
 export const EVENTS_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/events'
 export const MARKET_VIEW_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/market-view'
+export const BUBBLE_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/bubble'
+export const BUBBLE_PREVIEW_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/bubble-preview.png'
+export const PREVIEW_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/preview'
+export const ACTIONS_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/actions'
+export const ACTIONS_PLAY_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/actions/play'
+export const MEMES_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/memes'
+export const MEME_IMAGE_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/memes/image'
+export const MEMES_PICK_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/memes/pick'
+export const COMPANION_DIAGNOSTICS_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/companion/diagnostics'
 export const MANIFEST_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/manifest'
 export const FRAME_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/frame'
 export { BALANCE_ENDPOINT }
@@ -60,6 +74,7 @@ export const Config = Schema.object({
   ]).default('always').description('气泡显示模式'),
   bubbleStates: Schema.array(Schema.string()).default(['SUCCESS', 'ERROR', 'WAITING']).description('自定义模式下显示气泡的状态'),
   includeSubagents: Schema.boolean().default(false).description('允许子 Agent 抢占宠物状态'),
+  memeBattle: Schema.boolean().default(true).description('聊天里出现表情包时，桌宠也回一张（只读，不往聊天里发消息）'),
   webOverlay: Schema.boolean().default(false).description('在 DSH 页面右下角显示轻量桌宠（可与桌面窗口同时开启）'),
   clientTarget: Schema.union(['auto', 'web', 'desktop']).default('auto').description('打开 DSH 的目标客户端（自动识别 WebUI／桌面端）'),
   balanceEnabled: Schema.boolean().default(true).description('在状态气泡和设置页显示 DeepSeek 余额'),
@@ -97,6 +112,7 @@ const defaults = Object.freeze({
   bubbleMode: 'always',
   bubbleStates: ['SUCCESS', 'ERROR', 'WAITING'],
   includeSubagents: false,
+  memeBattle: true,
   webOverlay: false,
   clientTarget: 'auto',
   balanceEnabled: true,
@@ -129,6 +145,7 @@ function publicConfig(config = {}) {
     bubbleMode: config.bubbleMode ?? defaults.bubbleMode,
     bubbleStates: Array.isArray(config.bubbleStates) ? config.bubbleStates : defaults.bubbleStates,
     includeSubagents: config.includeSubagents ?? defaults.includeSubagents,
+    memeBattle: config.memeBattle !== false,
     webOverlay: config.webOverlay === true,
     clientTarget: config.clientTarget ?? defaults.clientTarget,
     balanceEnabled: config.balanceEnabled !== false,
@@ -413,6 +430,37 @@ function createEffectiveSettings(host, overrides, logger) {
   }
 }
 
+export function eventText(event) {
+  const data = event?.data ?? {}
+  const parts = []
+  const visit = (value) => {
+    if (typeof value === 'string') {
+      parts.push(value)
+      return
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item)
+      return
+    }
+    if (value && typeof value === 'object') {
+      if (typeof value.text === 'string') parts.push(value.text)
+      if (typeof value.content === 'string') parts.push(value.content)
+    }
+  }
+  visit(data.content)
+  visit(data.text)
+  visit(data.message?.content)
+  visit(data.message?.text)
+  return parts.join(' ')
+}
+
+export function eventHasImage(event) {
+  const content = event?.data?.content ?? event?.data?.message?.content
+  if (!Array.isArray(content)) return false
+  return content.some((block) => block && typeof block === 'object'
+    && (block.type === 'image' || block.image !== undefined || block.attachment !== undefined))
+}
+
 function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
   const eventStream = createEventStream()
   const helperConfig = config.helper ?? {}
@@ -439,6 +487,18 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
   // task finishes without waiting for the next poll.
   let marketMessage = null
   let lastTaskState = CompanionState.IDLE
+  const bubbleStore = createBubbleStore({ logger })
+  const actionsStore = createActionsStore({ logger })
+  const getMemeService = () => {
+    try {
+      return typeof ctx.get === 'function' ? ctx.get('dshMeme') : undefined
+    } catch {
+      return undefined
+    }
+  }
+  const memes = createMemeLibrary({ logger, getService: getMemeService })
+  const pendingPreviews = new Map()
+  let previewSeq = 0
   const balance = createBalanceMonitor({
     query: createBalanceQuery(ctx),
     onChange(snapshot) {
@@ -493,6 +553,11 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
 
   const stopRuntime = (reason = 'settings-change') => {
     stopMarketRuntime()
+    for (const pending of pendingPreviews.values()) {
+      clearTimeout(pending.timer)
+      pending.reject(new Error('桌宠已停止'))
+    }
+    pendingPreviews.clear()
     bridge?.stop(reason)
     bridge = undefined
     reducer = undefined
@@ -559,6 +624,96 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     }
   }
 
+  const companionConfig = (next) => ({
+    scale: next.scale ?? defaults.scale,
+    bubbleScale: next.bubbleScale ?? defaults.bubbleScale,
+    activityLevel: next.activityLevel ?? defaults.activityLevel,
+    reducedMotion: next.reducedMotion === true,
+    soundEnabled: next.soundEnabled !== false,
+    soundStates: normalizeSoundStates(next.soundStates),
+    bubbleMode: next.bubbleMode ?? defaults.bubbleMode,
+    bubbleStates: Array.isArray(next.bubbleStates) ? next.bubbleStates : defaults.bubbleStates,
+    openUrl: resolveClientTarget({ ...config, ...next }).url,
+    openLabel: resolveClientTarget({ ...config, ...next }).label,
+    bubble: bubbleStore.get(),
+    actions: actionsStore.get(),
+  })
+
+  const sendConfig = (next = settings.get()) => {
+    if (!bridge) return
+    bridge.send(createMessage(CompanionMessageKind.CONFIG, companionConfig(next)))
+  }
+
+  const sendMeme = (tag) => {
+    if (!bridge) return false
+    const meme = memes.pick({ tag })
+    if (!meme) return false
+    bridge.send(createMessage(CompanionMessageKind.MEME, {
+      path: meme.path,
+      caption: meme.caption,
+      tag: meme.tag,
+      mime: meme.mime,
+      ttlMs: 8000,
+    }))
+    return true
+  }
+
+  const requestPreview = (spec, scene, data) => new Promise((resolvePromise, reject) => {
+    if (!bridge) {
+      reject(new Error('桌宠尚未连接'))
+      return
+    }
+    const requestId = `p-${++previewSeq}-${randomUUID().slice(0, 8)}`
+    const timer = setTimeout(() => {
+      pendingPreviews.delete(requestId)
+      reject(new Error('预览超时'))
+    }, 6000)
+    timer.unref?.()
+    pendingPreviews.set(requestId, { resolve: resolvePromise, reject, timer })
+    bridge.send(createMessage(CompanionMessageKind.PREVIEW, {
+      requestId,
+      spec,
+      scene: scene || 'status',
+      data: data || {},
+      path: bubbleStore.previewPath,
+    }))
+  })
+
+  const handleHelperMessage = (message) => {
+    if (!message || typeof message !== 'object') return
+    if (message.kind === CompanionMessageKind.PREVIEW_READY) {
+      const pending = pendingPreviews.get(message.requestId)
+      if (!pending) return
+      clearTimeout(pending.timer)
+      pendingPreviews.delete(message.requestId)
+      pending.resolve({ rev: Date.now() })
+      return
+    }
+    if (message.kind === CompanionMessageKind.MEME_REQUEST || message.kind === CompanionMessageKind.BUBBLE_CLICK) {
+      if (!sendMeme(message.tag)) {
+        logger.debug?.('dafeiyu: meme requested but the library is empty')
+      }
+      return
+    }
+    if (message.kind === CompanionMessageKind.INTERACTION) {
+      logger.debug?.(`dafeiyu interaction: ${message.region ?? 'unknown'}`)
+    }
+  }
+
+  let lastMemeReactionAt = 0
+  // Read-only chat reaction: when the user posts a meme marker or an image,
+  // the pet answers with its own meme bubble. It never writes to the session.
+  const maybeCounterMeme = (event) => {
+    if (!bridge || settings.get().memeBattle === false) return
+    if (event?.type !== 'user/message') return
+    const text = eventText(event)
+    if (!text.includes('[表情:') && !eventHasImage(event)) return
+    const now = Date.now()
+    if (now - lastMemeReactionAt < 6000) return
+    lastMemeReactionAt = now
+    sendMeme('daily')
+  }
+
   const applyLiveSettings = (next) => {
     if (!bridge || !reducer) return
     // Keep the environment used by a later Helper spawn in sync with the live
@@ -566,18 +721,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     // the replayed CONFIG snapshot arrives.
     bridge.options.env = { ...bridge.options.env, ...helperEnvironment(next) }
     for (const message of reducer.setIncludeSubagents(next.includeSubagents === true)) bridge.send(message)
-    bridge.send(createMessage(CompanionMessageKind.CONFIG, {
-      scale: next.scale ?? defaults.scale,
-      bubbleScale: next.bubbleScale ?? defaults.bubbleScale,
-      activityLevel: next.activityLevel ?? defaults.activityLevel,
-      reducedMotion: next.reducedMotion === true,
-      soundEnabled: next.soundEnabled !== false,
-      soundStates: normalizeSoundStates(next.soundStates),
-      bubbleMode: next.bubbleMode ?? defaults.bubbleMode,
-      bubbleStates: Array.isArray(next.bubbleStates) ? next.bubbleStates : defaults.bubbleStates,
-      openUrl: resolveClientTarget({ ...config, ...next }).url,
-      openLabel: resolveClientTarget({ ...config, ...next }).label,
-    }))
+    sendConfig(next)
     // Market settings apply live: toggling the switch starts or stops polling
     // without restarting the Helper window.
     if (next.marketEnabled === true) {
@@ -610,6 +754,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
       onCycle: (reply) => {
         marketMonitor?.cycleView({ back: reply?.back === true })
       },
+      onMessage: (message) => handleHelperMessage(message),
       onSettingsChange: (report) => {
         if (typeof settings.update !== 'function') return
         const patch = {}
@@ -673,6 +818,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
       message: '我在这儿等新任务哦',
       detail: 'DSH · 等待下一次任务',
     }))
+    sendConfig(resolved)
     if (balance.get().status !== 'disabled') bridge.send(createMessage(CompanionMessageKind.BALANCE, balance.get()))
     if (resolved.marketEnabled === true) startMarketRuntime()
     logger.info?.('dsh-dafeiyu-jinrong companion bridge started')
@@ -689,6 +835,11 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
   // the event, which would look exactly like "installing the pet broke other
   // plugins".
   const offEvent = eventCtx.on('session/event', (session, event) => {
+    try {
+      maybeCounterMeme(event)
+    } catch (error) {
+      logger.warn?.(`dafeiyu: meme reaction failed: ${error?.message ?? error}`)
+    }
     if (!bridge || !reducer) return
     try {
       for (const message of reducer.handle(session, event)) bridge.send(message)
@@ -746,6 +897,19 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
   const offProvider = eventCtx.on('settings/document-updated', (ns) => {
     if (['llm-deepseek', 'llm-deepseek-api-key', balanceProviderNamespace(ctx)].includes(ns)) refreshBalance()
   }, { global: true })
+
+  const companionApi = createCompanionApi({
+    bubbleStore,
+    actionsStore,
+    memes,
+    getBridge: () => bridge,
+    getCatalog: () => loadClipCatalog(),
+    getMemeService,
+    requestPreview,
+    sendConfig,
+    logger,
+  })
+
   if (typeof ctx.inject === 'function') {
     ctx.inject(['webServer'], (httpCtx) => {
       httpCtx.effect(
@@ -763,6 +927,42 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
       httpCtx.effect(
         () => httpCtx.webServer.register({ kind: 'exact', path: BALANCE_ENDPOINT, handler: createBalanceHandler(balance) }),
         'dsh-dafeiyu-jinrong: local balance endpoint',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: BUBBLE_ENDPOINT, handler: companionApi.bubble }),
+        'dsh-dafeiyu-jinrong: bubble spec endpoint',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: PREVIEW_ENDPOINT, handler: companionApi.preview }),
+        'dsh-dafeiyu-jinrong: bubble preview endpoint',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: BUBBLE_PREVIEW_ENDPOINT, handler: companionApi.previewImage }),
+        'dsh-dafeiyu-jinrong: bubble preview image',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ACTIONS_ENDPOINT, handler: companionApi.actions }),
+        'dsh-dafeiyu-jinrong: action config endpoint',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ACTIONS_PLAY_ENDPOINT, handler: companionApi.actionsPlay }),
+        'dsh-dafeiyu-jinrong: action playback endpoint',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: MEMES_ENDPOINT, handler: companionApi.memeList }),
+        'dsh-dafeiyu-jinrong: meme library endpoint',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: MEME_IMAGE_ENDPOINT, handler: companionApi.memeImage }),
+        'dsh-dafeiyu-jinrong: meme image endpoint',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: MEMES_PICK_ENDPOINT, handler: companionApi.memePick }),
+        'dsh-dafeiyu-jinrong: meme pick endpoint',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: COMPANION_DIAGNOSTICS_ENDPOINT, handler: companionApi.diagnostics }),
+        'dsh-dafeiyu-jinrong: companion diagnostics',
       )
       const assetRoutes = createAssetRoutes()
       if (assetRoutes) {
