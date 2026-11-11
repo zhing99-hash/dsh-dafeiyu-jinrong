@@ -27,10 +27,9 @@
     "click_angry": "傲娇生气"
   },
   "categories": [
-    { "id": "micro", "label": "小动作", "weight": 35, "clips": ["idle_stretch", "idle_yawn", "eat_token", "idle_hum", "idle_mirror", "idle_fan"] },
-    { "id": "play", "label": "玩耍", "weight": 20, "clips": ["play_cube", "play_gift"] },
-    { "id": "idle", "label": "发呆", "weight": 25, "clips": ["idle"] },
-    { "id": "response", "label": "自娱自乐", "weight": 20, "clips": ["head_pat", "poke", "tail"] }
+    { "id": "micro", "label": "小动作", "weight": 40, "clips": ["idle_stretch", "idle_yawn", "eat_token", "idle_hum", "idle_mirror", "idle_fan"] },
+    { "id": "play", "label": "玩耍", "weight": 30, "clips": ["play_cube", "play_gift"] },
+    { "id": "response", "label": "自娱自乐", "weight": 30, "clips": ["head_pat", "poke", "tail"] }
   ],
   "click": {
     "head": {
