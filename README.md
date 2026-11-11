@@ -110,6 +110,9 @@ node scripts/market-snapshot.mjs a --view 1  # 渲染第一只自选股的气泡
 - **动作包接口**：`assets/actions.json` 管分类/权重/点击池，`assets/pet-manifest.json`
   管 clip。后续扩展包按同一接口加 clip 即可，未知 clip 会被忽略。
 
+> 0.4.0 的新气泡/斗图渲染在 Qt Helper（Windows / Linux）实现；macOS 的 Swift
+> Helper 仍走旧卡片，等后续移植。
+>
 > 0.4.0 改了 Helper 的气泡/动作代码，源码 `link:` 安装前请先
 > `npm run build:helper`（或直接用 Release 里已打包的 Helper）；只更新
 > `src/` 和 `lib/` 不重建 Helper 时，桌宠仍会跑旧的气泡渲染器。
