@@ -79,7 +79,8 @@ test('settings client debounces each slider independently', async () => {
   assert.match(source, /sliderTimers = useRef\(new Map\(\)\)/u)
   assert.match(source, /sliderTimers\.current\.get\(field\)/u)
   assert.match(source, /sliderTimers\.current\.set\(field, timer\)/u)
-  assert.match(source, /key: 'dsh-dafeiyu-jinrong'/u)
+  assert.match(source, /CompanionSettings/u)
+  assert.match(source, /'settings', '设置'/u)
 })
 
 test('the 养鱼 settings survive the local config endpoint', async () => {
