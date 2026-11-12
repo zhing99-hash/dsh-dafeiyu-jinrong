@@ -21,6 +21,7 @@ export const MARKET_DEFS = Object.freeze({
       { start: 13 * 60, end: 15 * 60 },
     ],
     indexCodes: ['sh000001', 'sz399001', 'sz399006'],
+    indexLabels: ['上证', '深证', '创指'],
     quoteUrl: (codes) => `http://qt.gtimg.cn/q=${codes.join(',')}`,
     klineUrl: (code) =>
       `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,,,20,qfq`,
@@ -34,6 +35,7 @@ export const MARKET_DEFS = Object.freeze({
       { start: 13 * 60, end: 16 * 60 },
     ],
     indexCodes: ['hkHSI', 'hkHSTECH'],
+    indexLabels: ['恒指', '恒生科技'],
     quoteUrl: (codes) => `http://qt.gtimg.cn/q=${codes.join(',')}`,
     klineUrl: (code) =>
       `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,,,20,qfq`,
@@ -44,6 +46,7 @@ export const MARKET_DEFS = Object.freeze({
     timeZone: 'America/New_York',
     sessions: [{ start: 9 * 60 + 30, end: 16 * 60 }],
     indexCodes: ['usDJI', 'usIXIC'],
+    indexLabels: ['道指', '纳指'],
     quoteUrl: (codes) => `http://qt.gtimg.cn/q=${codes.join(',')}`,
     klineUrl: (code) =>
       `https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=${code},day,,,20,qfq`,

@@ -7,10 +7,10 @@
 
 const STATES = ['IDLE', 'THINKING', 'WORKING', 'WAITING', 'SUCCESS', 'ERROR', 'DISCONNECTED']
 const BINDING_KEYS = [...STATES, 'MULTI_TASK', 'BALANCE', 'CLICK', 'MEME']
-const MODULE_TYPES = new Set(['text', 'icon', 'image', 'tasks', 'divider', 'spacer', 'stock', 'bar'])
+const MODULE_TYPES = new Set(['text', 'icon', 'image', 'tasks', 'divider', 'spacer', 'stock', 'quote', 'indices', 'bar'])
 const TEXT_FIELDS = new Set([
   'message', 'detail', 'balance', 'taskTitle', 'randomLine', 'caption', 'text',
-  'state', 'stockName', 'stockPrice', 'stockPct', 'stockPercentile', 'time',
+  'state', 'stockName', 'stockPrice', 'stockPct', 'stockPercentile', 'time', 'idleMeta',
 ])
 const COLOR_KEYS = new Set(['background', 'border', 'text', 'muted', 'accent'])
 const HEX = /^#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
@@ -116,6 +116,24 @@ export function normalizeModule(input, baseTheme) {
   }
   if (type === 'divider') return { ...common }
   if (type === 'spacer') return { ...common, weight: Number(clampNumber(module.weight, 0.02, 8, 1).toFixed(2)) }
+  if (type === 'quote') {
+    return {
+      ...common,
+      size: Number(clampNumber(module.size, 6, 24, baseTheme.bodySize).toFixed(1)),
+      showName: module.showName !== false,
+      showPrice: module.showPrice !== false,
+      showPct: module.showPct !== false,
+      showVolume: module.showVolume !== false,
+    }
+  }
+  if (type === 'indices') {
+    return {
+      ...common,
+      size: Number(clampNumber(module.size, 6, 24, baseTheme.bodySize).toFixed(1)),
+      showName: module.showName !== false,
+      showPct: module.showPct !== false,
+    }
+  }
   if (type === 'stock') {
     return {
       ...common,

@@ -36,6 +36,86 @@
         }
       ]
     },
+    "idle": {
+      "name": "空闲天气",
+      "ttlMs": 0,
+      "rows": [
+        {
+          "modules": [
+            { "type": "icon", "field": "state", "size": 46 },
+            { "type": "text", "field": "message", "size": 11, "bold": true, "weight": 1, "maxLines": 2 },
+            { "type": "spacer", "weight": 0.06 }
+          ]
+        },
+        {
+          "modules": [
+            { "type": "text", "field": "idleMeta", "size": 9, "color": "muted", "maxLines": 2 }
+          ]
+        },
+        {
+          "modules": [
+            { "type": "text", "field": "detail", "size": 9, "color": "muted", "maxLines": 2 }
+          ]
+        }
+      ]
+    },
+    "stock": {
+      "name": "个股一行",
+      "ttlMs": 0,
+      "rows": [
+        {
+          "modules": [
+            { "type": "icon", "field": "state", "size": 46 },
+            { "type": "text", "field": "message", "size": 11, "bold": true, "weight": 1, "maxLines": 2 },
+            { "type": "spacer", "weight": 0.06 }
+          ]
+        },
+        {
+          "modules": [
+            { "type": "quote", "size": 9, "weight": 1, "showName": true, "showPrice": true, "showPct": true, "showVolume": true }
+          ]
+        }
+      ]
+    },
+    "market": {
+      "name": "大盘",
+      "ttlMs": 0,
+      "rows": [
+        {
+          "modules": [
+            { "type": "icon", "field": "state", "size": 46 },
+            { "type": "text", "field": "message", "size": 11, "bold": true, "weight": 1, "maxLines": 2 },
+            { "type": "spacer", "weight": 0.06 }
+          ]
+        },
+        {
+          "modules": [
+            { "type": "indices", "size": 9, "weight": 1, "showName": true, "showPct": true }
+          ]
+        },
+        {
+          "modules": [
+            { "type": "text", "field": "detail", "size": 9, "color": "muted", "maxLines": 2 }
+          ]
+        }
+      ]
+    },
+    "countdown": {
+      "name": "倒计时提醒",
+      "ttlMs": 0,
+      "rows": [
+        {
+          "modules": [
+            { "type": "text", "field": "message", "size": 30, "bold": true, "align": "center", "wrap": false, "maxLines": 1 }
+          ]
+        },
+        {
+          "modules": [
+            { "type": "text", "field": "detail", "size": 10, "color": "muted", "align": "center", "wrap": false, "maxLines": 1 }
+          ]
+        }
+      ]
+    },
     "tasks": {
       "name": "多任务",
       "ttlMs": 0,

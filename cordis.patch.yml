@@ -28,3 +28,7 @@
         marketAlertCooldown: 300
         marketYieldToTask: true
         marketTushareToken: ''
+        weatherEnabled: true
+        weatherCity: ''
+        weatherRefreshMinutes: 30
+        idleTargets: '09:30 开盘, 15:30 收盘'

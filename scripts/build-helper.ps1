@@ -39,6 +39,7 @@ try {
     --specpath $work `
     --paths (Join-Path $projectRoot 'runtime') `
     --hidden-import bubble `
+    --hidden-import idle_schedule `
     $entry
   $buildExit = $LASTEXITCODE
 } finally {

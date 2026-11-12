@@ -1,7 +1,7 @@
 {
   "name": "dsh-dafeiyu-jinrong",
-  "version": "0.4.0",
-  "description": "Desktop BigFish companion driven by DeepSeek Harness session events, with market sentiment, an editable bubble studio, action packs and meme battles.",
+  "version": "0.5.0",
+  "description": "Desktop BigFish companion driven by DeepSeek Harness session events, with an editable bubble studio, action packs, IP weather, daily countdowns, market sentiment and meme battles.",
   "author": "QCYTSN",
   "type": "module",
   "main": "src/index.js",
@@ -16,6 +16,7 @@
     "src/",
     "lib/client.js",
     "runtime/helper.py",
+    "runtime/idle_schedule.py",
     "runtime/animation_model.py",
     "runtime/bubble.py",
     "runtime/layout_store.py",

@@ -46,7 +46,11 @@ test('a tick turns quotes into one market state message', async () => {
     // A 2% drop with a wide range should land in the lower half of the scale.
     fetchImpl: stubFetch((url) => (url.includes('eastmoney')
       ? { data: { fenbu: [{ '-2': 3000 }, { '0': 200 }, { '1': 1200 }] } }
-      : quoteLine('sh000001', '上证指数', 3600, 3673))),
+      : [
+          quoteLine('sh000001', '上证指数', 3600, 3673),
+          quoteLine('sz399001', '深证成指', 11000, 10912),
+          quoteLine('sz399006', '创业板指', 2200, 2156),
+        ].join(''))),
     now: () => Date.parse('2026-11-03T01:40:00Z'),
     logger: { warn() {} },
   })
@@ -61,6 +65,10 @@ test('a tick turns quotes into one market state message', async () => {
   assert.equal(message.__market, true)
   assert.equal(message.phase, 'market')
   assert.match(message.detail, /上涨 1200 \/ 下跌 3000/)
+  assert.deepEqual(message.indices.map((item) => item.name), ['上证', '深证', '创指'])
+  assert.ok(message.indices[0].pct < 0)
+  assert.ok(message.indices[1].pct > 0)
+  assert.ok(message.indices[2].pct > 0)
   assert.ok(message.stage.startsWith('A股'))
   assert.ok(monitor.snapshot.score < 45, `expected a weak score, got ${monitor.snapshot.score}`)
 })

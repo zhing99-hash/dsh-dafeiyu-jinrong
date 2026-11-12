@@ -158,6 +158,17 @@ export function createMarketMonitor({
     return parts.join(' · ')
   }
 
+  function indexRows(definition, quotes) {
+    return definition.indexCodes
+      .map((code, index) => {
+        const quote = quotes?.get?.(code)
+        const pct = Number(quote?.pct)
+        if (!Number.isFinite(pct)) return null
+        return { name: definition.indexLabels?.[index] || quote?.name || code, pct }
+      })
+      .filter(Boolean)
+  }
+
   function stateMessage(moodBand, cfg, quotes, extra = {}) {
     const definition = MARKET_DEFS[cfg.focus]
     lineSeed += 1
@@ -168,6 +179,7 @@ export function createMarketMonitor({
       stage: `${definition.label} · ${MOOD_LABELS[moodBand.key] ?? moodBand.key}`,
       message: text,
       detail: extra.detail ?? snapshotText(cfg, quotes ?? new Map()),
+      indices: indexRows(definition, quotes),
       __market: true,
       ...(extra.alert === true ? { __alert: true } : {}),
     })
@@ -487,16 +499,34 @@ export function stockStateMessage(view, quotes, focusQuote, seed = 0, volumeRati
     ? quote.pct - focusQuote.pct
     : null
   const stock = scoreStock({ pct: quote.pct, relativePct, volumeRatio })
-  const detail = [`${formatPrice(quote.price)} ${formatPct(quote.pct)}`]
+  const name = view.alias || quote.name || view.code
+  // Show at most one breached threshold. If a misconfigured pair straddles the
+  // price (above < below), keep the side that broke further so the line still
+  // means something without turning into two alerts.
+  const aboveBreak = view.above && quote.price >= view.above ? quote.price - view.above : null
+  const belowBreak = view.below && quote.price <= view.below ? view.below - quote.price : null
+  let limit = null
+  if (aboveBreak !== null && (belowBreak === null || aboveBreak >= belowBreak)) {
+    limit = { kind: 'above', value: view.above }
+  } else if (belowBreak !== null) {
+    limit = { kind: 'below', value: view.below }
+  }
+  const detail = [`${name} ${formatPrice(quote.price)} ${formatPct(quote.pct)}`]
   if (Number.isFinite(volumeRatio)) detail.push(`量比 ${volumeRatio.toFixed(2)}`)
-  if (view.above) detail.push(`上限 ${formatPrice(view.above)}${quote.price >= view.above ? ' 已破' : ''}`)
-  if (view.below) detail.push(`下限 ${formatPrice(view.below)}${quote.price <= view.below ? ' 已破' : ''}`)
+  if (limit) detail.push(`${limit.kind === 'above' ? '上限' : '下限'} ${formatPrice(limit.value)} 已破`)
   return createMessage('state', {
     state: STOCK_LEVEL_STATE[stock.level] ?? 'IDLE',
     phase: 'market-stock',
-    stage: `${view.alias || quote.name} · ${STOCK_LEVEL_LABEL[stock.level] ?? '平稳'}`,
+    stage: `${name} · ${STOCK_LEVEL_LABEL[stock.level] ?? '平稳'}`,
     message: stockLine(stock.level, seed),
     detail: detail.join(' · '),
+    quote: {
+      name,
+      price: quote.price,
+      pct: quote.pct,
+      volumeRatio: Number.isFinite(volumeRatio) ? volumeRatio : null,
+      limit,
+    },
     __market: true,
   })
 }

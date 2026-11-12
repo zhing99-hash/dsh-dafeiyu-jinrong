@@ -147,9 +147,26 @@ test('the stock bubble shows price, move, volume ratio and threshold state', () 
   assert.equal(message.phase, 'market-stock')
   assert.equal(message.stage, '茅台 · 走强')
   assert.equal(message.state, 'SUCCESS')
-  assert.match(message.detail, /1705\.00/)
+  assert.match(message.detail, /茅台 1705\.00/)
   assert.match(message.detail, /量比 1\.40/)
   assert.match(message.detail, /上限 1700\.00 已破/)
+  assert.doesNotMatch(message.detail, /下限/)
+  assert.equal(message.quote.name, '茅台')
+  assert.equal(message.quote.price, 1705)
+  assert.deepEqual(message.quote.limit, { kind: 'above', value: 1700 })
+})
+
+test('a stock line shows neither limit while the price is inside the band', () => {
+  const quotes = new Map([
+    ['sh600519', { code: 'sh600519', name: '贵州茅台', price: 1600, pct: 0.2, volume: 1000 }],
+  ])
+  const message = stockStateMessage(
+    { kind: 'stock', code: 'sh600519', alias: '茅台', above: 1700, below: 1500 },
+    quotes,
+    { pct: 0.1 },
+  )
+  assert.doesNotMatch(message.detail, /上限|下限/)
+  assert.equal(message.quote.limit, null)
 })
 
 test('a weak name maps to the error state and says so', () => {

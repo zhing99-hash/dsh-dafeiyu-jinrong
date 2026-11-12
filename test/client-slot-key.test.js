@@ -3,20 +3,20 @@ import { readFile } from 'node:fs/promises'
 import { runInNewContext } from 'node:vm'
 import test from 'node:test'
 
-test('client exposes its own bundle configuration and preserves older settings entries', async () => {
+test('client registers the studio and sidebar without duplicate settings cards', async () => {
   const source = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8')
 
-  let capturedOptions
+  const injections = []
   const registrations = []
   const ctx = {
     slots: {
       inject(name, register) {
-        assert.ok(['plugins.bundle.config', 'settings.plugins.tab', 'settings.plugin.item'].includes(name))
+        assert.ok(['main', 'sidebar.panellist'].includes(name))
+        injections.push(name)
         register()
       },
-      register(options, component) {
-        capturedOptions = options
-        registrations.push({ ...options, component })
+      register(options) {
+        registrations.push(options)
         return {}
       },
     },
@@ -24,6 +24,8 @@ test('client exposes its own bundle configuration and preserves older settings e
 
   const React = {
     createElement(type, props, ...children) { return { type, props, children } },
+    Fragment: 'Fragment',
+    useCallback(fn) { return fn },
     useEffect() {},
     useRef(initial) { return { current: initial } },
     useState(initial) { return [initial, () => {}] },
@@ -47,18 +49,13 @@ test('client exposes its own bundle configuration and preserves older settings e
   runInNewContext(source, sandbox)
   client.apply(ctx)
 
-  assert.ok(capturedOptions, 'expected settings.plugin.item registration')
-  assert.equal(capturedOptions.name, 'settings.plugin.item')
-  assert.equal(capturedOptions.key, 'dsh-dafeiyu-jinrong')
-  assert.equal(capturedOptions.id, 'dsh-dafeiyu-jinrong')
-  assert.equal(registrations[0].name, 'plugins.bundle.config')
-  assert.equal(registrations[0].key, 'dsh-dafeiyu-jinrong')
-  const page = registrations[0].component({ view: 'page' })
-  assert.equal(page.type, 'section')
-  assert.equal(page.props['data-testid'], 'dsh-dafeiyu-jinrong-settings')
-  assert.equal(registrations[2].component().type, 'li')
-  assert.equal(registrations[1].name, 'settings.plugins.tab')
-  assert.equal(registrations[1].label(), '大肥鱼')
+  assert.deepEqual(injections, ['main', 'sidebar.panellist'])
+  assert.deepEqual(registrations.map((row) => row.name), ['main', 'sidebar.panellist'])
+  assert.equal(registrations[0].key, 'dafeiyu-studio')
+  assert.equal(registrations[1].id, 'dafeiyu-studio')
+  assert.match(source, /'settings', '设置'/u)
+  assert.match(source, /CompanionSettings/u)
+  assert.doesNotMatch(source, /settings\.plugin\.item/u)
 })
 
 test('client apply does not throw when the slot contract changes or fails', async () => {
@@ -98,24 +95,21 @@ test('client apply does not throw when the slot contract changes or fails', asyn
     slots: {
       inject(name, register) {
         injectAttempted += 1
-        assert.ok([
-          'plugins.bundle.config', 'settings.plugins.tab', 'settings.plugin.item',
-          'main', 'sidebar.panellist',
-        ].includes(name))
+        assert.ok(['main', 'sidebar.panellist'].includes(name))
         deferred.push(register)
       },
       register() {
         registerAttempted += 1
-        throw new Error('keyed slot settings.plugin.item requires options.key')
+        throw new Error('keyed slot main requires options.key')
       },
     },
   }
 
   assert.doesNotThrow(() => client.apply(ctx))
-  assert.equal(injectAttempted, 5)
+  assert.equal(injectAttempted, 2)
   assert.equal(registerAttempted, 0)
   for (const register of deferred) assert.doesNotThrow(register)
-  assert.equal(registerAttempted, 5)
+  assert.equal(registerAttempted, 2)
 })
 
 test('client apply also contains a synchronous inject failure', async () => {

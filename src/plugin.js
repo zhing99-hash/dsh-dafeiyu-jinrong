@@ -18,6 +18,7 @@ import { createBubbleStore } from './bubble/store.js'
 import { createActionsStore, loadClipCatalog } from './actions/store.js'
 import { createMemeLibrary } from './memes.js'
 import { createCompanionApi } from './companion-api.js'
+import { createWeatherService } from './weather.js'
 import {
   CompanionMessageKind,
   CompanionState,
@@ -95,6 +96,10 @@ export const Config = Schema.object({
   marketAlertCooldown: Schema.number().min(60).max(3600).step(30).default(300).description('同一价格提醒的冷却时间（秒）'),
   marketYieldToTask: Schema.boolean().default(true).description('有 DSH 任务进行时让位于任务状态'),
   marketTushareToken: Schema.string().default('').description('Tushare token（可选）：补齐自选股的历史成交量，用来算量比'),
+  weatherEnabled: Schema.boolean().default(true).description('空闲气泡显示按 IP 定位的天气'),
+  weatherCity: Schema.string().default('').description('天气城市覆盖（留空按 IP 定位）'),
+  weatherRefreshMinutes: Schema.number().min(5).max(180).step(5).default(30).description('天气刷新间隔（分钟）'),
+  idleTargets: Schema.string().default('09:30 开盘, 15:30 收盘').description('每日倒计时目标，格式：HH:MM 标签，逗号分隔；留空关闭'),
 }).description('由 DeepSeek Harness 状态驱动的桌面大肥鱼伴侣')
 
 // Mark fields, rather than the root object: current DSH passes each volatile
@@ -124,6 +129,10 @@ const defaults = Object.freeze({
   marketAlertCooldown: 300,
   marketYieldToTask: true,
   marketTushareToken: '',
+  weatherEnabled: true,
+  weatherCity: '',
+  weatherRefreshMinutes: 30,
+  idleTargets: '09:30 开盘, 15:30 收盘',
 })
 
 const SOUND_STATES = new Set(['SUCCESS', 'ERROR', 'APPROVAL'])
@@ -157,6 +166,10 @@ function publicConfig(config = {}) {
     marketAlertCooldown: config.marketAlertCooldown ?? defaults.marketAlertCooldown,
     marketYieldToTask: config.marketYieldToTask !== false,
     marketTushareToken: String(config.marketTushareToken ?? defaults.marketTushareToken),
+    weatherEnabled: config.weatherEnabled !== false,
+    weatherCity: String(config.weatherCity ?? defaults.weatherCity),
+    weatherRefreshMinutes: config.weatherRefreshMinutes ?? defaults.weatherRefreshMinutes,
+    idleTargets: String(config.idleTargets ?? defaults.idleTargets),
   }
 }
 
@@ -497,6 +510,23 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     }
   }
   const memes = createMemeLibrary({ logger, getService: getMemeService })
+  let lastWeatherLine = ''
+  const weatherService = createWeatherService({
+    logger,
+    onChange: (snapshot) => {
+      const line = String(snapshot?.line ?? '')
+      if (!line && !lastWeatherLine) return
+      lastWeatherLine = line
+      if (!bridge) return
+      bridge.send(createMessage(CompanionMessageKind.WEATHER, {
+        line,
+        city: snapshot?.city ?? '',
+        condition: snapshot?.condition ?? '',
+        temperature: snapshot?.temperature ?? null,
+        updatedAt: snapshot?.updatedAt ?? Date.now(),
+      }))
+    },
+  })
   const pendingPreviews = new Map()
   let previewSeq = 0
   const balance = createBalanceMonitor({
@@ -553,6 +583,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
 
   const stopRuntime = (reason = 'settings-change') => {
     stopMarketRuntime()
+    weatherService.stop()
     for (const pending of pendingPreviews.values()) {
       clearTimeout(pending.timer)
       pending.reject(new Error('桌宠已停止'))
@@ -637,6 +668,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     openLabel: resolveClientTarget({ ...config, ...next }).label,
     bubble: bubbleStore.get(),
     actions: actionsStore.get(),
+    idleTargets: String(next.idleTargets ?? defaults.idleTargets),
   })
 
   const sendConfig = (next = settings.get()) => {
@@ -722,6 +754,11 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     bridge.options.env = { ...bridge.options.env, ...helperEnvironment(next) }
     for (const message of reducer.setIncludeSubagents(next.includeSubagents === true)) bridge.send(message)
     sendConfig(next)
+    weatherService.configure({
+      weatherEnabled: next.weatherEnabled !== false,
+      weatherCity: String(next.weatherCity ?? defaults.weatherCity),
+      weatherRefreshMinutes: next.weatherRefreshMinutes ?? defaults.weatherRefreshMinutes,
+    })
     // Market settings apply live: toggling the switch starts or stops polling
     // without restarting the Helper window.
     if (next.marketEnabled === true) {
@@ -819,6 +856,11 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
       detail: 'DSH · 等待下一次任务',
     }))
     sendConfig(resolved)
+    weatherService.configure({
+      weatherEnabled: resolved.weatherEnabled !== false,
+      weatherCity: String(resolved.weatherCity ?? defaults.weatherCity),
+      weatherRefreshMinutes: resolved.weatherRefreshMinutes ?? defaults.weatherRefreshMinutes,
+    })
     if (balance.get().status !== 'disabled') bridge.send(createMessage(CompanionMessageKind.BALANCE, balance.get()))
     if (resolved.marketEnabled === true) startMarketRuntime()
     logger.info?.('dsh-dafeiyu-jinrong companion bridge started')

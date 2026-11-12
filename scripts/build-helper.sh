@@ -49,6 +49,7 @@ fi
   --specpath "$work" \
   --paths "$project_root/runtime" \
   --hidden-import bubble \
+  --hidden-import idle_schedule \
   "$entry"
 
 executable="$output/dsh-dafeiyu-helper"
