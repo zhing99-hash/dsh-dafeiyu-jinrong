@@ -77,6 +77,29 @@
         }
       ]
     },
+    "market": {
+      "name": "大盘",
+      "ttlMs": 0,
+      "rows": [
+        {
+          "modules": [
+            { "type": "icon", "field": "state", "size": 46 },
+            { "type": "text", "field": "message", "size": 11, "bold": true, "weight": 1, "maxLines": 2 },
+            { "type": "spacer", "weight": 0.06 }
+          ]
+        },
+        {
+          "modules": [
+            { "type": "indices", "size": 9, "weight": 1, "showName": true, "showPct": true }
+          ]
+        },
+        {
+          "modules": [
+            { "type": "text", "field": "detail", "size": 9, "color": "muted", "maxLines": 2 }
+          ]
+        }
+      ]
+    },
     "countdown": {
       "name": "倒计时提醒",
       "ttlMs": 0,

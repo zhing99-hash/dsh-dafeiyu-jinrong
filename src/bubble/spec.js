@@ -7,7 +7,7 @@
 
 const STATES = ['IDLE', 'THINKING', 'WORKING', 'WAITING', 'SUCCESS', 'ERROR', 'DISCONNECTED']
 const BINDING_KEYS = [...STATES, 'MULTI_TASK', 'BALANCE', 'CLICK', 'MEME']
-const MODULE_TYPES = new Set(['text', 'icon', 'image', 'tasks', 'divider', 'spacer', 'stock', 'quote', 'bar'])
+const MODULE_TYPES = new Set(['text', 'icon', 'image', 'tasks', 'divider', 'spacer', 'stock', 'quote', 'indices', 'bar'])
 const TEXT_FIELDS = new Set([
   'message', 'detail', 'balance', 'taskTitle', 'randomLine', 'caption', 'text',
   'state', 'stockName', 'stockPrice', 'stockPct', 'stockPercentile', 'time', 'idleMeta',
@@ -124,6 +124,14 @@ export function normalizeModule(input, baseTheme) {
       showPrice: module.showPrice !== false,
       showPct: module.showPct !== false,
       showVolume: module.showVolume !== false,
+    }
+  }
+  if (type === 'indices') {
+    return {
+      ...common,
+      size: Number(clampNumber(module.size, 6, 24, baseTheme.bodySize).toFixed(1)),
+      showName: module.showName !== false,
+      showPct: module.showPct !== false,
     }
   }
   if (type === 'stock') {

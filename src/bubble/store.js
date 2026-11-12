@@ -51,7 +51,7 @@ export function createBubbleStore({ root = dataRoot(), logger = console } = {}) 
   let loaded = false
   // 0.5 added these scenes. Merge them into an existing user spec so an upgrade
   // shows the new idle/stock/countdown surfaces without overwriting edits.
-  const NEW_SCENES = ['idle', 'stock', 'countdown']
+  const NEW_SCENES = ['idle', 'stock', 'market', 'countdown']
 
   function withNewScenes(spec) {
     for (const name of NEW_SCENES) {

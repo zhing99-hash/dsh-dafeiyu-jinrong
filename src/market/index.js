@@ -158,6 +158,17 @@ export function createMarketMonitor({
     return parts.join(' · ')
   }
 
+  function indexRows(definition, quotes) {
+    return definition.indexCodes
+      .map((code, index) => {
+        const quote = quotes?.get?.(code)
+        const pct = Number(quote?.pct)
+        if (!Number.isFinite(pct)) return null
+        return { name: definition.indexLabels?.[index] || quote?.name || code, pct }
+      })
+      .filter(Boolean)
+  }
+
   function stateMessage(moodBand, cfg, quotes, extra = {}) {
     const definition = MARKET_DEFS[cfg.focus]
     lineSeed += 1
@@ -168,6 +179,7 @@ export function createMarketMonitor({
       stage: `${definition.label} · ${MOOD_LABELS[moodBand.key] ?? moodBand.key}`,
       message: text,
       detail: extra.detail ?? snapshotText(cfg, quotes ?? new Map()),
+      indices: indexRows(definition, quotes),
       __market: true,
       ...(extra.alert === true ? { __alert: true } : {}),
     })

@@ -466,6 +466,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             # even when no state message arrives.
             self.weather_line = ""
             self.market_quote: dict[str, Any] | None = None
+            self.market_indices: list[dict[str, Any]] | None = None
             self.idle_targets = parse_targets(None)
             self.countdown_target: datetime | None = None
             self.countdown_label = ""
@@ -566,6 +567,11 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                     self.market_quote = dict(message["quote"])
                 else:
                     self.market_quote = None
+                indices = message.get("indices")
+                if message.get("phase") == "market" and isinstance(indices, list):
+                    self.market_indices = [dict(item) for item in indices if isinstance(item, dict)]
+                else:
+                    self.market_indices = None
                 self._measure_cache = None
                 previous_base_state = self.model.base_state
                 state = str(message.get("state", "IDLE"))
@@ -1348,6 +1354,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             message, _detail, state = self._active_status()
             if self.market_quote and "stock" in scenes:
                 return "stock"
+            if self.market_indices and "market" in scenes:
+                return "market"
             if state == "IDLE" and "idle" in scenes and self._idle_meta():
                 return "idle"
             if not message and self.balance_summary:
@@ -1370,6 +1378,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 "detail": detail,
                 "idleMeta": self._idle_meta(),
                 "quote": self.market_quote,
+                "indices": self.market_indices,
                 "taskTitle": f"{len(self.tasks)} 个任务进行中",
                 "tasks": self.tasks,
                 "balance": self.balance_summary,
@@ -1394,6 +1403,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                     scene, self.bubble_scale, data.get("state"), data.get("message"),
                     data.get("detail"), data.get("idleMeta"),
                     json.dumps(data.get("quote"), sort_keys=True, ensure_ascii=False),
+                    json.dumps(data.get("indices"), sort_keys=True, ensure_ascii=False),
                     len(data.get("tasks") or []), data.get("balance"),
                     data.get("caption"), data.get("randomLine"), self.meme_path,
                     getattr(self, "bubble_override", None) is not None,

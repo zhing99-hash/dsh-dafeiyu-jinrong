@@ -227,6 +227,9 @@ class BubbleRenderer:
             price_font.setPointSizeF(max(6.0, font.pointSizeF() * 1.35))
             price_font.setBold(True)
             return width, max(_line_height(font), _line_height(price_font)) * 1.12
+        if kind == "indices":
+            font = self._font_for_module(module, scale, 9)
+            return width, _line_height(font) * 1.2
         # stock / bar
         font = self._font_for_module(module, scale, 9)
         return width, _line_height(font) * 1.5
@@ -358,11 +361,60 @@ class BubbleRenderer:
         if kind == "quote":
             self._paint_quote(painter, module, rect, data, scale)
             return
+        if kind == "indices":
+            self._paint_indices(painter, module, rect, data, scale)
+            return
         if kind == "bar":
             self._paint_bar(painter, module, rect, data, scale)
             return
         if kind == "text":
             self._paint_text(painter, module, rect, data, scale, align)
+
+    def _paint_indices(self, painter: QPainter, module: dict[str, Any], rect: QRectF, data: dict[str, Any], scale: float) -> None:
+        indices = data.get("indices")
+        if not isinstance(indices, list) or not indices:
+            return
+        font = self._font_for_module(module, scale, float(self.theme.get("bodySize") or 9))
+        muted = resolve_color("muted", self.theme)
+        up = QColor("#E5484D")
+        down = QColor("#12B85A")
+        segments: list[tuple[str, QColor]] = []
+        for item in indices:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            pct = item.get("pct")
+            if not name or not isinstance(pct, (int, float)):
+                continue
+            if segments:
+                segments.append(("  ", muted))
+            label = f"{name}：{pct:+.2f}%" if module.get("showPct", True) else name
+            color = up if pct > 0 else down if pct < 0 else muted
+            segments.append((label, color))
+        if not segments:
+            return
+        painter.setFont(font)
+        metrics = _metrics(font)
+        x = rect.left()
+        right = rect.right()
+        for text, color in segments:
+            if not text:
+                continue
+            width = metrics.horizontalAdvance(text)
+            remaining = right - x
+            if remaining <= 0:
+                break
+            draw_text = text
+            if width > remaining:
+                draw_text = metrics.elidedText(text, Qt.TextElideMode.ElideRight, int(remaining))
+            if not draw_text:
+                break
+            painter.setPen(color)
+            y = rect.top() + (rect.height() - metrics.height()) / 2 + metrics.ascent()
+            painter.drawText(QPointF(x, y), draw_text)
+            x += metrics.horizontalAdvance(draw_text)
+            if width > remaining:
+                break
 
     def _paint_quote(self, painter: QPainter, module: dict[str, Any], rect: QRectF, data: dict[str, Any], scale: float) -> None:
         quote = data.get("quote")
