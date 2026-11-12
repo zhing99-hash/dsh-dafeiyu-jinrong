@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import random
 import sys
 import threading
 import time
 from collections import OrderedDict
+from datetime import datetime
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -23,11 +25,13 @@ try:
     from .layout_store import default_layout_path, load_layout, save_layout
     from .asset_paths import bundle_root
     from .pet_geometry import bubble_top, position_window
+    from .idle_schedule import countdown_text, next_target, parse_targets
 except ImportError:
     from animation_model import AnimationModel, crossfade_duration
     from layout_store import default_layout_path, load_layout, save_layout
     from asset_paths import bundle_root
     from pet_geometry import bubble_top, position_window
+    from idle_schedule import countdown_text, next_target, parse_targets
 
 
 PROTOCOL_VERSION = 1
@@ -457,6 +461,19 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.balance_summary = ""
             self.bubble_spec = load_bubble_spec()
             self.bubble_renderer = BubbleRenderer(self.bubble_spec, self.LABELS)
+            # Idle weather + daily wall-clock countdown. The host owns the
+            # weather line; the Helper owns the schedule so it keeps ticking
+            # even when no state message arrives.
+            self.weather_line = ""
+            self.market_quote: dict[str, Any] | None = None
+            self.idle_targets = parse_targets(None)
+            self.countdown_target: datetime | None = None
+            self.countdown_label = ""
+            self.countdown_text = ""
+            self.last_countdown_second: int | None = None
+            self.last_countdown_update_ms = 0
+            self.countdown_override_active = False
+            self._reset_idle_target()
             self.action_config = load_action_config()
             self.bubble_override: dict[str, Any] | None = None
             self.click_step = 0
@@ -534,6 +551,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self._apply_meme_message(message)
             elif kind == "action":
                 self._play_action_message(message)
+            elif kind == "weather":
+                self._apply_weather_message(message)
             elif kind == "preview":
                 self._render_preview(message)
             elif kind in {"state", "pulse"}:
@@ -543,6 +562,11 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 # immediately and the new clip is never visible.
                 if self.action_until_ms is not None and self._now_ms() < self.action_until_ms:
                     return
+                if message.get("phase") == "market-stock" and isinstance(message.get("quote"), dict):
+                    self.market_quote = dict(message["quote"])
+                else:
+                    self.market_quote = None
+                self._measure_cache = None
                 previous_base_state = self.model.base_state
                 state = str(message.get("state", "IDLE"))
                 if self.sleeping and state != "IDLE":
@@ -605,6 +629,91 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             else:
                 self._schedule_micro()
 
+        def _reset_idle_target(self) -> None:
+            self.countdown_target, self.countdown_label = next_target(self.idle_targets, datetime.now()) or (None, "")
+            if self.countdown_target is None:
+                self.countdown_text = ""
+            else:
+                remaining = (self.countdown_target - datetime.now()).total_seconds()
+                self.countdown_text = countdown_text(self.countdown_label, remaining)
+            self.last_countdown_second = None
+
+        def _idle_meta(self) -> str:
+            # The user asked for weather/countdown only in the idle bubble, and
+            # not while a stock quote owns the bubble.
+            if self.market_quote:
+                return ""
+            parts = [part for part in (self.weather_line, self.countdown_text) if part]
+            return " · ".join(parts)
+
+        def _apply_weather_message(self, message: dict[str, Any]) -> None:
+            line = str(message.get("line") or "").strip()
+            self.weather_line = line[:120]
+            self._measure_cache = None
+            self._sync_bubble_size()
+            self.update()
+
+        def _update_idle_countdown(self, now_ms: int) -> None:
+            if now_ms - self.last_countdown_update_ms < 250:
+                return
+            self.last_countdown_update_ms = now_ms
+            if not self.idle_targets:
+                if self.countdown_text:
+                    self.countdown_text = ""
+                    self._measure_cache = None
+                return
+            now = datetime.now()
+            if self.countdown_target is None:
+                self._reset_idle_target()
+            if self.countdown_target is None:
+                return
+            if self.bubble_override is None and self.countdown_override_active:
+                # The 10-second/prompt override expired; restore the idle card
+                # height even if the countdown is now hours away.
+                self.countdown_override_active = False
+                self._measure_cache = None
+                self._sync_bubble_size()
+            remaining = (self.countdown_target - now).total_seconds()
+            if remaining <= 0:
+                label = self.countdown_label
+                if not self.reduced_motion:
+                    self.action_until_ms = now_ms + 3000
+                    self._play_model_overlay("click_happy")
+                self.bubble_override = {
+                    "scene": "countdown",
+                    "data": {"message": f"{label}了！", "detail": "大肥鱼兴奋起来了"},
+                    "deadline": now_ms + 3200,
+                }
+                self.countdown_override_active = True
+                self._measure_cache = None
+                self._reset_idle_target()
+                self._sync_bubble_size()
+                self.update()
+                return
+            text = countdown_text(self.countdown_label, remaining)
+            if text != self.countdown_text:
+                self.countdown_text = text
+                self._measure_cache = None
+                self._sync_bubble_size()
+            if remaining <= 10:
+                seconds = max(1, int(math.ceil(remaining)))
+                if not self.countdown_override_active or self.last_countdown_second != seconds:
+                    self.bubble_override = {
+                        "scene": "countdown",
+                        "data": {
+                            "message": str(seconds),
+                            "detail": f"{self.countdown_label}倒计时",
+                        },
+                        "deadline": now_ms + 1200,
+                    }
+                    self.countdown_override_active = True
+                    self.last_countdown_second = seconds
+                    self._measure_cache = None
+                    self._sync_bubble_size()
+                    self.update()
+            else:
+                self.last_countdown_second = None
+
         def _apply_config(self, message: dict[str, Any]) -> None:
             """Apply a live CONFIG message without restarting the window."""
             if isinstance(message.get("openUrl"), str):
@@ -651,6 +760,16 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.action_config = actions
                 if not self.reduced_motion:
                     self._schedule_micro()
+            idle_targets = message.get("idleTargets")
+            if idle_targets is not None:
+                parsed_targets = parse_targets(idle_targets)
+                if parsed_targets != self.idle_targets:
+                    self.idle_targets = parsed_targets
+                    self._reset_idle_target()
+                    if self.bubble_override and self.bubble_override.get("scene") == "countdown":
+                        self.bubble_override = None
+                    self.countdown_override_active = False
+                    self._measure_cache = None
             self._sync_bubble_size()
             self._save_layout()
 
@@ -949,6 +1068,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 self.display_state = self.model.base_state
             if self.overlay_deadline_ms is not None and now_ms >= self.overlay_deadline_ms:
                 self._clear_overlay()
+            self._update_idle_countdown(now_ms)
             self._rearm_animation_interval()
             self.update()
 
@@ -1221,10 +1341,15 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                     return str(self.bubble_override.get("scene") or "status")
                 self.bubble_override = None
                 self._clear_meme()
+            scenes = self.bubble_spec.get("scenes") or {}
             bindings = self.bubble_spec.get("bindings") or {}
             if len(self.tasks) >= 2 and self._bubble_visible():
                 return str(bindings.get("MULTI_TASK") or "tasks")
             message, _detail, state = self._active_status()
+            if self.market_quote and "stock" in scenes:
+                return "stock"
+            if state == "IDLE" and "idle" in scenes and self._idle_meta():
+                return "idle"
             if not message and self.balance_summary:
                 return str(bindings.get("BALANCE") or "balance")
             return str(bindings.get(state) or bindings.get("IDLE") or "status")
@@ -1243,6 +1368,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 "state": state,
                 "message": message,
                 "detail": detail,
+                "idleMeta": self._idle_meta(),
+                "quote": self.market_quote,
                 "taskTitle": f"{len(self.tasks)} 个任务进行中",
                 "tasks": self.tasks,
                 "balance": self.balance_summary,
@@ -1265,7 +1392,9 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                 data = self._card_data()
                 signature = (
                     scene, self.bubble_scale, data.get("state"), data.get("message"),
-                    data.get("detail"), len(data.get("tasks") or []), data.get("balance"),
+                    data.get("detail"), data.get("idleMeta"),
+                    json.dumps(data.get("quote"), sort_keys=True, ensure_ascii=False),
+                    len(data.get("tasks") or []), data.get("balance"),
                     data.get("caption"), data.get("randomLine"), self.meme_path,
                     getattr(self, "bubble_override", None) is not None,
                 )

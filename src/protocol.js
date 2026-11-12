@@ -21,6 +21,8 @@ export const CompanionMessageKind = Object.freeze({
   CONFIG: 'config',
   BALANCE: 'balance',
   SETTINGS: 'settings',
+  // Host → helper: the IP-locked idle weather line (refreshed on a timer).
+  WEATHER: 'weather',
   // Helper → host: the user pressed Tab on the pet, advance the bubble view.
   CYCLE: 'cycle',
   // Companion surfaces added in 0.4: custom bubble spec, meme cards, action

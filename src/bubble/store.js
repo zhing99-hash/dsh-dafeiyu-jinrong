@@ -49,13 +49,23 @@ export function createBubbleStore({ root = dataRoot(), logger = console } = {}) 
   const base = defaultBubbleSpec()
   let current = base
   let loaded = false
+  // 0.5 added these scenes. Merge them into an existing user spec so an upgrade
+  // shows the new idle/stock/countdown surfaces without overwriting edits.
+  const NEW_SCENES = ['idle', 'stock', 'countdown']
+
+  function withNewScenes(spec) {
+    for (const name of NEW_SCENES) {
+      if (!spec.scenes[name] && base.scenes[name]) spec.scenes[name] = base.scenes[name]
+    }
+    return spec
+  }
 
   function load() {
     if (loaded) return current
     loaded = true
     try {
       const raw = readJsonFile(path)
-      current = normalizeSpec(raw, base)
+      current = withNewScenes(normalizeSpec(raw, base))
     } catch (error) {
       if (error && error.code !== 'ENOENT') {
         logger.warn?.(`dafeiyu: bubble spec is invalid, using defaults (${error.message})`)
@@ -89,7 +99,7 @@ export function createBubbleStore({ root = dataRoot(), logger = console } = {}) 
     },
     save(next) {
       load()
-      const normalized = normalizeSpec(next, base)
+      const normalized = withNewScenes(normalizeSpec(next, base))
       atomicWrite(path, normalized)
       current = normalized
       return current

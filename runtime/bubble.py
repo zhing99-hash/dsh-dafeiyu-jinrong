@@ -126,6 +126,14 @@ def _line_height(font: QFont) -> float:
     return float(_metrics(font).height())
 
 
+def _format_price(value: float) -> str:
+    if abs(value) >= 1000:
+        return f"{value:.2f}"
+    if abs(value) >= 1:
+        return f"{value:.2f}"
+    return f"{value:.4f}"
+
+
 def _module_text(module: dict[str, Any], data: dict[str, Any]) -> str:
     field = module.get("field")
     if field == "text":
@@ -213,6 +221,12 @@ class BubbleRenderer:
             text = _module_text(module, data)
             lines = _wrap(text, font, width, int(module.get("maxLines") or 2))
             return width, max(_line_height(font), len(lines) * _line_height(font) * 1.35)
+        if kind == "quote":
+            font = self._font_for_module(module, scale, 9)
+            price_font = QFont(font)
+            price_font.setPointSizeF(max(6.0, font.pointSizeF() * 1.35))
+            price_font.setBold(True)
+            return width, max(_line_height(font), _line_height(price_font)) * 1.12
         # stock / bar
         font = self._font_for_module(module, scale, 9)
         return width, _line_height(font) * 1.5
@@ -341,11 +355,79 @@ class BubbleRenderer:
         if kind == "stock":
             self._paint_stock(painter, module, rect, data, scale)
             return
+        if kind == "quote":
+            self._paint_quote(painter, module, rect, data, scale)
+            return
         if kind == "bar":
             self._paint_bar(painter, module, rect, data, scale)
             return
         if kind == "text":
             self._paint_text(painter, module, rect, data, scale, align)
+
+    def _paint_quote(self, painter: QPainter, module: dict[str, Any], rect: QRectF, data: dict[str, Any], scale: float) -> None:
+        quote = data.get("quote")
+        if not isinstance(quote, dict):
+            return
+        font = self._font_for_module(module, scale, float(self.theme.get("bodySize") or 9))
+        price_font = QFont(font)
+        price_font.setPointSizeF(max(6.0, font.pointSizeF() * 1.35))
+        price_font.setBold(True)
+        text_color = resolve_color("text", self.theme)
+        muted = resolve_color("muted", self.theme)
+        up = QColor("#E5484D")
+        down = QColor("#12B85A")
+        segments: list[tuple[str, QFont, QColor]] = []
+        name = str(quote.get("name") or quote.get("code") or "").strip()
+        price = quote.get("price")
+        pct = quote.get("pct")
+        volume = quote.get("volumeRatio")
+        limit = quote.get("limit") if isinstance(quote.get("limit"), dict) else None
+        if module.get("showName", True) and name:
+            segments.append((name, font, text_color))
+        if module.get("showPrice", True) and isinstance(price, (int, float)):
+            if segments:
+                segments.append((" ", font, text_color))
+            segments.append((_format_price(float(price)), price_font, text_color))
+        if module.get("showPct", True) and isinstance(pct, (int, float)):
+            if segments:
+                segments.append(("  ", font, muted))
+            segments.append((f"{pct:+.2f}%", font, muted))
+        if module.get("showVolume", True) and isinstance(volume, (int, float)):
+            if segments:
+                segments.append(("  ", font, muted))
+            segments.append((f"量比 {volume:.2f}", font, muted))
+        if limit:
+            kind = str(limit.get("kind") or "")
+            value = limit.get("value")
+            if kind in {"above", "below"} and isinstance(value, (int, float)):
+                if segments:
+                    segments.append(("  ", font, muted))
+                label = "上限" if kind == "above" else "下限"
+                segments.append((f"{label} {_format_price(float(value))}", font, up if kind == "above" else down))
+        if not segments:
+            return
+        x = rect.left()
+        right = rect.right()
+        for text, seg_font, color in segments:
+            if not text:
+                continue
+            metrics = _metrics(seg_font)
+            width = metrics.horizontalAdvance(text)
+            remaining = right - x
+            if remaining <= 0:
+                break
+            draw_text = text
+            if width > remaining:
+                draw_text = metrics.elidedText(text, Qt.TextElideMode.ElideRight, int(remaining))
+            if not draw_text:
+                break
+            painter.setFont(seg_font)
+            painter.setPen(color)
+            y = rect.top() + (rect.height() - metrics.height()) / 2 + metrics.ascent()
+            painter.drawText(QPointF(x, y), draw_text)
+            x += metrics.horizontalAdvance(draw_text)
+            if width > remaining:
+                break
 
     def _paint_text(self, painter: QPainter, module: dict[str, Any], rect: QRectF, data: dict[str, Any], scale: float, align: str) -> None:
         font = self._font_for_module(module, scale, float(self.theme.get("bodySize") or 9))

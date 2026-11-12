@@ -84,7 +84,7 @@ test('plugin forwards DSH-shaped session events and owns helper shutdown', async
     },
   }
 
-  apply(ctx, { balanceEnabled: false, helper: { headless: true, eventLog, logFile: null, tempDirectory: null } })
+  apply(ctx, { balanceEnabled: false, weatherEnabled: false, helper: { headless: true, eventLog, logFile: null, tempDirectory: null } })
   const session = { header: { id: 'phase0-real-shape' } }
   listeners.get('session/event')(session, { type: 'turn/start', seq: 1, data: { turn: 1 } })
   listeners.get('session/event')(session, {

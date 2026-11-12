@@ -3,6 +3,23 @@
 > This is release history. For installation, use the [latest stable release](https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/releases/latest), not commands from older entries.
 > 上游历史见 [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)。
 
+## 0.5.0 · 2026-11-12
+
+### Added
+
+- **空闲天气**：IDLE 时按公网 IP 定位城市，使用 Open-Meteo 获取当前天气，
+  格式 `城市：天气 26°C`；30 分钟缓存，可设置城市覆盖（代理/VPN 下 IP 城市不准时用）。
+- **每日倒计时**：默认 `09:30 开盘`、`15:30 收盘`，可在设置里加 `17:00 下班` 等
+  自定义目标；只在空闲气泡显示天气 + 最近目标倒计时，任务进行时仍显示任务内容。
+- **最后 10 秒优先提醒**：T-10s 起覆盖气泡显示 `10..1`，到点播放「开心跃动」
+  爱心动作并显示 `开盘了！` / `收盘了！`，随后恢复原内容。
+- **股票一行**：名称 + 股价在前，股价加粗放大；涨跌幅、量比继续同一行；
+  上限/下限平时不显示，仅在破位时显示一个，上破红色、下破绿色。
+- **气泡场景**：新增 `idle`、`stock`、`countdown` 场景与 `quote` 模块；
+  已有 `bubble.json` 自动补齐新场景，不覆盖用户编辑；工坊支持新场景和
+  `idleMeta` / `quote` 字段。
+- 设置页新增：显示天气、城市覆盖、天气刷新间隔、每日倒计时目标。
+
 ## 0.4.0 · 2026-11-11
 
 ### Added
