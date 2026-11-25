@@ -219,6 +219,25 @@ export function createDsaClient({ fetchImpl = globalThis.fetch, getConfig = () =
       const payload = await request('/api/v1/analysis/market-review', { method: 'POST', body: { notify: false } })
       return { taskIds: taskIdsOf(payload), raw: payload }
     },
+    async systemConfig() {
+      return request('/api/v1/system/config')
+    },
+    async syncStockList(codes) {
+      const normalized = [...new Set((Array.isArray(codes) ? codes : [codes]).map(toDsaCode).filter(Boolean))]
+      if (normalized.length === 0) throw new Error('养鱼自选股为空，无法同步到 DSA')
+      const config = await this.systemConfig()
+      const version = textOf(config?.config_version)
+      if (!version) throw new Error('DSA 配置缺少 config_version，无法同步自选股')
+      return request('/api/v1/system/config', {
+        method: 'PUT',
+        body: {
+          config_version: version,
+          mask_token: textOf(config?.mask_token) || '******',
+          reload_now: true,
+          items: [{ key: 'STOCK_LIST', value: normalized.join(',') }],
+        },
+      })
+    },
     async chat(message, sessionId = '') {
       const body = { message: String(message ?? '') }
       if (sessionId) body.session_id = sessionId

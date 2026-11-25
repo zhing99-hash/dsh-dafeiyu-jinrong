@@ -59,6 +59,7 @@ export const ANALYSIS_ANALYZE_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/
 export const ANALYSIS_MARKET_REVIEW_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/market-review'
 export const ANALYSIS_CHAT_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/chat'
 export const ANALYSIS_DOCKER_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/docker'
+export const ANALYSIS_SYNC_WATCHLIST_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/sync-watchlist'
 export { BALANCE_ENDPOINT }
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -1092,6 +1093,10 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
       httpCtx.effect(
         () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_DOCKER_ENDPOINT, handler: analysisApi.docker }),
         'dsh-dafeiyu-jinrong: analysis docker',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_SYNC_WATCHLIST_ENDPOINT, handler: analysisApi.syncWatchlist }),
+        'dsh-dafeiyu-jinrong: analysis watchlist sync',
       )
       const assetRoutes = createAssetRoutes()
       if (assetRoutes) {

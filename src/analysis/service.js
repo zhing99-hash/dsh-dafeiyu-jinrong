@@ -349,6 +349,12 @@ export function createAnalysisService({
       if (!container) throw new Error('未配置 DSA 容器名')
       return action === 'status' ? dockerStatus(container) : dockerAction(container, action)
     },
+    syncWatchlist: async () => {
+      if (!enabled()) throw new Error('请先启用 DSA')
+      const codes = watchlistOf(configOf()).map((entry) => entry.code)
+      if (codes.length === 0) throw new Error('养鱼自选股为空，无法同步')
+      return client.syncStockList(codes)
+    },
     configure,
     checkSchedule,
     nextRunAt,

@@ -35,6 +35,10 @@ test('the DSA client reads history and keeps analysis requests local-only', asyn
       if (url.includes('/history?')) return response({ items: [], total: 0 })
       if (url.includes('/analysis/analyze')) return response({ task_id: 'task-1' }, { status: 202 })
       if (url.includes('/analysis/tasks')) return response({ tasks: [{ task_id: 'task-1', stock_code: '600519', status: 'running', progress: 20 }] })
+      if (url.includes('/api/v1/system/config')) {
+        if (init?.method === 'PUT') return response({ success: true, config_version: 'v2', updated_keys: ['STOCK_LIST'] })
+        return response({ config_version: 'v1', mask_token: '******', items: [{ key: 'STOCK_LIST', value: '600519' }] })
+      }
       if (url.includes('/api/health')) return response({ status: 'ok' })
       return response({ ok: false, error: 'unexpected' }, { ok: false, status: 404 })
     },
@@ -62,6 +66,13 @@ test('the DSA client reads history and keeps analysis requests local-only', asyn
   const tasks = await client.tasks()
   assert.equal(tasks[0].status, 'running')
   assert.equal(tasks[0].progress, 20)
+
+  const sync = await client.syncStockList(['sh600519', 'hk00700'])
+  assert.deepEqual(sync.updated_keys, ['STOCK_LIST'])
+  const syncRequest = requests.find((row) => row.url.endsWith('/api/v1/system/config') && row.init?.method === 'PUT')
+  const syncBody = JSON.parse(syncRequest.init.body)
+  assert.equal(syncBody.config_version, 'v1')
+  assert.deepEqual(syncBody.items, [{ key: 'STOCK_LIST', value: '600519,hk00700' }])
 })
 
 test('DSA API errors surface status and message', async () => {

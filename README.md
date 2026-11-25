@@ -133,12 +133,24 @@ node scripts/market-snapshot.mjs a --view 1  # 渲染第一只自选股的气泡
 DSA 不在本插件包里，需自行运行（推荐 Docker）：
 
 ```bash
+# 第一次：创建容器（--env-file 指向 DSA 的 .env）
 docker run -d --name daily_stock_analysis -p 127.0.0.1:8000:8000 \
-  --env-file .env zhulinsen/daily_stock_analysis
+  --env-file C:\dsa\.env zhulinsen/daily_stock_analysis
 ```
 
-然后在工坊「分析 → 连接」填 `http://127.0.0.1:8000` 并启用。桌宠只保存连接地址，
-不复制 DSA 的模型/数据源 Key；DSA 自身 schedule 建议关闭，由大肥鱼触发，避免重复推送。
+之后在工坊「分析 → 连接」填 `http://127.0.0.1:8000`、容器名
+`daily_stock_analysis`，即可用「启动容器 / 停止容器 / 检查容器」管理已有容器。
+大肥鱼不会自动拉镜像或安装 Python；容器不存在时先执行上面的 `docker run`。
+
+**共用自选股**：面板的分析列表直接复用「设置 → 养鱼」的 `marketWatchlist`；
+点「同步自选到 DSA」会把代码写入 DSA 的 `STOCK_LIST`（通过 DSA
+`/api/v1/system/config`，需要时带认证 Cookie），这样 DSA WebUI 和 DSA 自己的
+scheduler 也用同一份列表。建议只保留一处定时：要么让大肥鱼在工作日 18:00 触发，
+要么用 DSA 自己的 scheduler；不要两边同时开，避免重复分析和推送。
+
+桌宠只保存连接地址，不复制 DSA 的模型/数据源 Key；DSA 自身 schedule 建议关闭，
+由大肥鱼触发，避免重复推送。
+
 
 
 > 0.4.0 的新气泡/斗图渲染在 Qt Helper（Windows / Linux）实现；macOS 的 Swift
