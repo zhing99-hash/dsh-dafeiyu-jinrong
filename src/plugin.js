@@ -60,6 +60,8 @@ export const ANALYSIS_MARKET_REVIEW_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/ana
 export const ANALYSIS_CHAT_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/chat'
 export const ANALYSIS_DOCKER_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/docker'
 export const ANALYSIS_SYNC_WATCHLIST_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/sync-watchlist'
+export const ANALYSIS_START_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/start'
+export const ANALYSIS_STOP_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/stop'
 export { BALANCE_ENDPOINT }
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -123,6 +125,16 @@ export const Config = Schema.object({
   analysisPetSummary: Schema.boolean().default(true).description('分析完成后在桌宠气泡显示摘要'),
   analysisContainer: Schema.string().default('daily_stock_analysis').description('DSA Docker 容器名（仅用于面板状态/启动提示）'),
   analysisAuthCookie: Schema.string().default('').description('DSA 开启 ADMIN_AUTH_ENABLED 时的 Cookie（默认无需配置）'),
+  analysisLaunchMode: Schema.union([
+    Schema.const('auto').description('自动：优先 Docker，失败后本地'),
+    Schema.const('docker').description('只管理 Docker 容器'),
+    Schema.const('local').description('本地 Python 启动'),
+  ]).default('auto').description('「启动 DSA」按钮的启动方式'),
+  analysisDockerImage: Schema.string().default('zhulinsen/daily_stock_analysis').description('首次创建 Docker 容器使用的镜像'),
+  analysisDockerPort: Schema.number().min(1).max(65535).step(1).default(8000).description('DSA Docker 对外端口'),
+  analysisRepoPath: Schema.string().default('').description('本地 DSA checkout 路径（local/auto 回退时）'),
+  analysisPython: Schema.string().default('').description('本地 DSA 的 Python（可填 venv 的 python.exe）'),
+  analysisEnvFile: Schema.string().default('').description('本地 DSA 的 .env 路径；留空用 checkout/.env'),
 }).description('由 DeepSeek Harness 状态驱动的桌面大肥鱼伴侣')
 
 // Mark fields, rather than the root object: current DSH passes each volatile
@@ -163,6 +175,12 @@ const defaults = Object.freeze({
   analysisPetSummary: true,
   analysisContainer: 'daily_stock_analysis',
   analysisAuthCookie: '',
+  analysisLaunchMode: 'auto',
+  analysisDockerImage: 'zhulinsen/daily_stock_analysis',
+  analysisDockerPort: 8000,
+  analysisRepoPath: '',
+  analysisPython: '',
+  analysisEnvFile: '',
 })
 
 const SOUND_STATES = new Set(['SUCCESS', 'ERROR', 'APPROVAL'])
@@ -207,6 +225,12 @@ function publicConfig(config = {}) {
     analysisPetSummary: config.analysisPetSummary !== false,
     analysisContainer: String(config.analysisContainer ?? defaults.analysisContainer),
     analysisAuthCookie: String(config.analysisAuthCookie ?? defaults.analysisAuthCookie),
+    analysisLaunchMode: config.analysisLaunchMode ?? defaults.analysisLaunchMode,
+    analysisDockerImage: String(config.analysisDockerImage ?? defaults.analysisDockerImage),
+    analysisDockerPort: config.analysisDockerPort ?? defaults.analysisDockerPort,
+    analysisRepoPath: String(config.analysisRepoPath ?? defaults.analysisRepoPath),
+    analysisPython: String(config.analysisPython ?? defaults.analysisPython),
+    analysisEnvFile: String(config.analysisEnvFile ?? defaults.analysisEnvFile),
   }
 }
 
@@ -1097,6 +1121,14 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
       httpCtx.effect(
         () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_SYNC_WATCHLIST_ENDPOINT, handler: analysisApi.syncWatchlist }),
         'dsh-dafeiyu-jinrong: analysis watchlist sync',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_START_ENDPOINT, handler: analysisApi.startDsa }),
+        'dsh-dafeiyu-jinrong: analysis start',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_STOP_ENDPOINT, handler: analysisApi.stopDsa }),
+        'dsh-dafeiyu-jinrong: analysis stop',
       )
       const assetRoutes = createAssetRoutes()
       if (assetRoutes) {

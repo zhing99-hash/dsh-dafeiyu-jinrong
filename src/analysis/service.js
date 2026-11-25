@@ -10,6 +10,7 @@ import {
   createDsaClient, normalizeBaseUrl, toDsaCode, DsaError, MAX_BATCH,
 } from './client.js'
 import { dockerAction, dockerStatus } from './docker.js'
+import { createDsaLauncher } from './launcher.js'
 
 const ACTIVE = new Set(['pending', 'queued', 'running', 'in_progress', 'processing'])
 const FINISHED = new Set(['completed', 'success', 'succeeded', 'done', 'failed', 'error', 'cancelled', 'canceled', 'timeout'])
@@ -62,6 +63,7 @@ export function createAnalysisService({
   scheduleCheckMs = 30_000,
 } = {}) {
   const client = createDsaClient({ fetchImpl, getConfig })
+  const launcher = createDsaLauncher({ getConfig, logger })
   let timer = null
   let pollTimer = null
   let stopped = false
@@ -108,6 +110,10 @@ export function createAnalysisService({
       lastSummary,
       tasks: activeTasks,
       watchlist: watchlistOf(config),
+      launch: {
+        mode: String(config.analysisLaunchMode ?? 'auto'),
+        ...launcher.status,
+      },
     }
   }
 
@@ -324,6 +330,7 @@ export function createAnalysisService({
     timer = null
     finishPolling()
     activeTasks = []
+    launcher.stop()
   }
 
   return {
@@ -354,6 +361,11 @@ export function createAnalysisService({
       const codes = watchlistOf(configOf()).map((entry) => entry.code)
       if (codes.length === 0) throw new Error('养鱼自选股为空，无法同步')
       return client.syncStockList(codes)
+    },
+    startDsa: async () => launcher.start(),
+    stopDsa: async () => {
+      launcher.stop()
+      return { ok: true }
     },
     configure,
     checkSchedule,

@@ -136,5 +136,15 @@ export function createAnalysisHandlers(service, { logger = console } = {}) {
       if (req.method !== 'POST') return jsonResponse(res, 405, { error: 'method not allowed' })
       try { jsonResponse(res, 200, await service.syncWatchlist()) } catch (error) { fail(res, error) }
     },
+    async startDsa(req, res) {
+      if (!guard(req, res)) return
+      if (req.method !== 'POST') return jsonResponse(res, 405, { error: 'method not allowed' })
+      try { jsonResponse(res, 200, await service.startDsa()) } catch (error) { fail(res, error) }
+    },
+    async stopDsa(req, res) {
+      if (!guard(req, res)) return
+      if (req.method !== 'POST') return jsonResponse(res, 405, { error: 'method not allowed' })
+      try { jsonResponse(res, 200, await service.stopDsa()) } catch (error) { fail(res, error) }
+    },
   }
 }

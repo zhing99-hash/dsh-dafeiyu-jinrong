@@ -142,6 +142,10 @@ docker run -d --name daily_stock_analysis -p 127.0.0.1:8000:8000 \
 `daily_stock_analysis`，即可用「启动容器 / 停止容器 / 检查容器」管理已有容器。
 大肥鱼不会自动拉镜像或安装 Python；容器不存在时先执行上面的 `docker run`。
 
+没有 Docker 时，也可以在「连接 → 启动方式」选「本地 Python」，填 DSA checkout、
+该 checkout 的 Python（可指向 venv）和 `.env`，然后用「启动 DSA」直接启动
+`python main.py --serve-only`。顶部「启动 DSA」按钮是主要入口；Docker/本地都走它。
+
 **共用自选股**：面板的分析列表直接复用「设置 → 养鱼」的 `marketWatchlist`；
 点「同步自选到 DSA」会把代码写入 DSA 的 `STOCK_LIST`（通过 DSA
 `/api/v1/system/config`，需要时带认证 Cookie），这样 DSA WebUI 和 DSA 自己的

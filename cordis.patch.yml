@@ -39,3 +39,9 @@
         analysisPetSummary: true
         analysisContainer: daily_stock_analysis
         analysisAuthCookie: ''
+        analysisLaunchMode: auto
+        analysisDockerImage: zhulinsen/daily_stock_analysis
+        analysisDockerPort: 8000
+        analysisRepoPath: ''
+        analysisPython: ''
+        analysisEnvFile: ''

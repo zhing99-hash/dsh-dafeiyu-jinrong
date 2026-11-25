@@ -19,7 +19,9 @@
   和评分最高的两只股票；DSA 不可用时不影响原有行情/任务。
 - **连接设置**：DSA 地址、容器名、报告类型、认证 Cookie、桌宠摘要开关；
   「启动/停止/检查容器」管理已存在的 Docker 容器（不自动拉镜像或安装 Python）；
-  「同步自选到 DSA」把养鱼 `marketWatchlist` 写入 DSA `STOCK_LIST`。
+  无 Docker 时可切换「本地 Python」，用同一套配置通过「启动 DSA」拉起
+  `python main.py --serve-only`；「同步自选到 DSA」把养鱼 `marketWatchlist`
+  写入 DSA `STOCK_LIST`。工坊「分析」Tab 置顶并作为默认页。
   `analysisEnabled` 默认关闭，不把 DSA Python/依赖塞进插件包。
 
 ## 0.5.0 · 2026-11-12
