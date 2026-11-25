@@ -23,10 +23,10 @@
 `dsh-dafeiyu-jinrong-<version>.tgz`（不用解压），完全退出 DSH Host 后：
 
 ```powershell
-dsh plugin --profile web add "C:\Users\<you>\Downloads\dsh-dafeiyu-jinrong-0.3.2.tgz"
+dsh plugin --profile web add "C:\Users\<you>\Downloads\dsh-dafeiyu-jinrong-<version>.tgz"
 ```
 
-> 本 fork **不发布到 npm**，所以 `dsh-dafeiyu-jinrong@0.3.2` 这种写法解析不到包，必须给文件路径。
+> 本 fork **不发布到 npm**，所以 `dsh-dafeiyu-jinrong@<version>` 这种写法解析不到包，必须给文件路径。
 > 官方桌面端用应用自带的 `dsh`：`<安装目录>\resources\runtime\cli\bin\dsh.cmd`。
 
 > ⚠️ **升级前必须完全退出 DSH**（包括托盘）。DSH 运行时会占住 `node_modules`，
@@ -41,7 +41,7 @@ dsh plugin --profile web add "C:\Users\<you>\Downloads\dsh-dafeiyu-jinrong-0.3.2
 pnpm pack --pack-destination .tmp
 
 # 2) 装进某个 profile（完全退出该 profile 的 DSH Host 后执行）
-dsh plugin --profile web add ".tmp\dsh-dafeiyu-jinrong-0.3.2.tgz"
+dsh plugin --profile web add ".tmp\dsh-dafeiyu-jinrong-<version>.tgz"
 
 # 3) 重启 DSH，设置页 → 行情情绪 → 启用
 ```
@@ -118,6 +118,28 @@ node scripts/market-snapshot.mjs a --view 1  # 渲染第一只自选股的气泡
   上限/下限只在破位时显示一个，上破红色、下破绿色。
 - **动作包接口**：`assets/actions.json` 管分类/权重/点击池，`assets/pet-manifest.json`
   管 clip。后续扩展包按同一接口加 clip 即可，未知 clip 会被忽略。
+
+### AI 分析面板（0.6+，可选）
+
+大肥鱼可以连接独立的 [daily_stock_analysis](https://github.com/ZhuLinsen/daily_stock_analysis)
+（DSA）Docker/FastAPI 服务，在工坊「分析」里查看 AI 决策仪表盘：
+
+- 仪表盘：复用养鱼自选股，显示最新结论、评分、趋势、Markdown 报告和关联新闻。
+- 分析：批量/单只异步分析、任务进度、历史记录；`notify:false`，不会触发 DSA 的外部推送。
+- 问股：DSA Agent 多轮策略问股（需 DSA `AGENT_MODE=true`）。
+- 大盘复盘：DSA 的 `--market-review` 接口；DSH 工作日 `18:00` 可自动触发（可留空关闭）。
+- 桌宠：分析完成后显示「今日分析 N 只 · 买入/观望/卖出」摘要。
+
+DSA 不在本插件包里，需自行运行（推荐 Docker）：
+
+```bash
+docker run -d --name daily_stock_analysis -p 127.0.0.1:8000:8000 \
+  --env-file .env zhulinsen/daily_stock_analysis
+```
+
+然后在工坊「分析 → 连接」填 `http://127.0.0.1:8000` 并启用。桌宠只保存连接地址，
+不复制 DSA 的模型/数据源 Key；DSA 自身 schedule 建议关闭，由大肥鱼触发，避免重复推送。
+
 
 > 0.4.0 的新气泡/斗图渲染在 Qt Helper（Windows / Linux）实现；macOS 的 Swift
 > Helper 仍走旧卡片，等后续移植。

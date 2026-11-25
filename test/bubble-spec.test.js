@@ -9,7 +9,7 @@ import { normalizeSpec } from '../src/bubble/spec.js'
 test('the packaged bubble spec validates and keeps the default scenes', () => {
   const spec = defaultBubbleSpec()
   assert.equal(spec.version, 1)
-  assert.deepEqual(Object.keys(spec.scenes).sort(), ['balance', 'click1', 'click2', 'countdown', 'idle', 'market', 'meme', 'status', 'stock', 'tasks'])
+  assert.deepEqual(Object.keys(spec.scenes).sort(), ['analysis', 'balance', 'click1', 'click2', 'countdown', 'idle', 'market', 'meme', 'status', 'stock', 'tasks'])
   assert.equal(spec.bindings.WORKING, 'status')
   assert.equal(spec.theme.width, 420)
   assert.ok(spec.randomLines.length >= 4)
@@ -73,6 +73,7 @@ test('an existing 0.4 bubble spec gains the new scenes without losing edits', ()
   delete old.scenes.idle
   delete old.scenes.stock
   delete old.scenes.market
+  delete old.scenes.analysis
   delete old.scenes.countdown
   old.scenes.status.name = '我的状态卡'
   writeFileSync(join(root, 'bubble.json'), JSON.stringify(old))
@@ -82,6 +83,7 @@ test('an existing 0.4 bubble spec gains the new scenes without losing edits', ()
   assert.ok(spec.scenes.idle)
   assert.ok(spec.scenes.stock)
   assert.ok(spec.scenes.market)
+  assert.ok(spec.scenes.analysis)
   assert.ok(spec.scenes.countdown)
 })
 

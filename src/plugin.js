@@ -19,6 +19,8 @@ import { createActionsStore, loadClipCatalog } from './actions/store.js'
 import { createMemeLibrary } from './memes.js'
 import { createCompanionApi } from './companion-api.js'
 import { createWeatherService } from './weather.js'
+import { createAnalysisService } from './analysis/service.js'
+import { createAnalysisHandlers } from './analysis/api.js'
 import {
   CompanionMessageKind,
   CompanionState,
@@ -48,6 +50,15 @@ export const MEMES_PICK_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/memes/pick'
 export const COMPANION_DIAGNOSTICS_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/companion/diagnostics'
 export const MANIFEST_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/manifest'
 export const FRAME_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/frame'
+export const ANALYSIS_STATUS_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/status'
+export const ANALYSIS_STOCKS_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/stocks'
+export const ANALYSIS_TASKS_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/tasks'
+export const ANALYSIS_HISTORY_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/history'
+export const ANALYSIS_REPORT_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/report'
+export const ANALYSIS_ANALYZE_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/analyze'
+export const ANALYSIS_MARKET_REVIEW_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/market-review'
+export const ANALYSIS_CHAT_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/chat'
+export const ANALYSIS_DOCKER_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/docker'
 export { BALANCE_ENDPOINT }
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -100,6 +111,17 @@ export const Config = Schema.object({
   weatherCity: Schema.string().default('').description('天气城市覆盖（留空按 IP 定位）'),
   weatherRefreshMinutes: Schema.number().min(5).max(180).step(5).default(30).description('天气刷新间隔（分钟）'),
   idleTargets: Schema.string().default('09:30 开盘, 15:30 收盘').description('每日倒计时目标，格式：HH:MM 标签，逗号分隔；留空关闭'),
+  analysisEnabled: Schema.boolean().default(false).description('启用 daily_stock_analysis（DSA）分析面板；DSA 需作为独立 Docker/FastAPI 服务运行'),
+  analysisBaseUrl: Schema.string().default('http://127.0.0.1:8000').description('DSA 服务地址（默认本地 Docker 端口）'),
+  analysisSchedule: Schema.string().default('18:00').description('DSA 自动分析时间（工作日 HH:MM）；留空关闭；由 DSH 触发，DSA 自己的 schedule 应关闭'),
+  analysisReportType: Schema.union([
+    Schema.const('simple').description('简短'),
+    Schema.const('detailed').description('详细'),
+    Schema.const('brief').description('摘要'),
+  ]).default('detailed').description('DSA 报告类型'),
+  analysisPetSummary: Schema.boolean().default(true).description('分析完成后在桌宠气泡显示摘要'),
+  analysisContainer: Schema.string().default('daily_stock_analysis').description('DSA Docker 容器名（仅用于面板状态/启动提示）'),
+  analysisAuthCookie: Schema.string().default('').description('DSA 开启 ADMIN_AUTH_ENABLED 时的 Cookie（默认无需配置）'),
 }).description('由 DeepSeek Harness 状态驱动的桌面大肥鱼伴侣')
 
 // Mark fields, rather than the root object: current DSH passes each volatile
@@ -133,6 +155,13 @@ const defaults = Object.freeze({
   weatherCity: '',
   weatherRefreshMinutes: 30,
   idleTargets: '09:30 开盘, 15:30 收盘',
+  analysisEnabled: false,
+  analysisBaseUrl: 'http://127.0.0.1:8000',
+  analysisSchedule: '18:00',
+  analysisReportType: 'detailed',
+  analysisPetSummary: true,
+  analysisContainer: 'daily_stock_analysis',
+  analysisAuthCookie: '',
 })
 
 const SOUND_STATES = new Set(['SUCCESS', 'ERROR', 'APPROVAL'])
@@ -170,6 +199,13 @@ function publicConfig(config = {}) {
     weatherCity: String(config.weatherCity ?? defaults.weatherCity),
     weatherRefreshMinutes: config.weatherRefreshMinutes ?? defaults.weatherRefreshMinutes,
     idleTargets: String(config.idleTargets ?? defaults.idleTargets),
+    analysisEnabled: config.analysisEnabled === true,
+    analysisBaseUrl: String(config.analysisBaseUrl ?? defaults.analysisBaseUrl),
+    analysisSchedule: String(config.analysisSchedule ?? defaults.analysisSchedule),
+    analysisReportType: config.analysisReportType ?? defaults.analysisReportType,
+    analysisPetSummary: config.analysisPetSummary !== false,
+    analysisContainer: String(config.analysisContainer ?? defaults.analysisContainer),
+    analysisAuthCookie: String(config.analysisAuthCookie ?? defaults.analysisAuthCookie),
   }
 }
 
@@ -527,6 +563,15 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
       }))
     },
   })
+  const analysisService = createAnalysisService({
+    getConfig: () => settings.get(),
+    sendMessage: (message) => {
+      if (bridge) bridge.send(message)
+    },
+    logger,
+  })
+  analysisService.start()
+  const analysisApi = createAnalysisHandlers(analysisService, { logger })
   const pendingPreviews = new Map()
   let previewSeq = 0
   const balance = createBalanceMonitor({
@@ -571,6 +616,11 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
       return message
     }
     if (message.__alert === true) return message
+    if (message.__analysis === true) {
+      if (current.marketYieldToTask !== false && lastTaskState !== CompanionState.IDLE) return null
+      marketMessage = null
+      return message
+    }
     if (message.__market === true) {
       if (current.marketYieldToTask !== false && lastTaskState !== CompanionState.IDLE) return null
       marketMessage = message
@@ -747,6 +797,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
   }
 
   const applyLiveSettings = (next) => {
+    analysisService.configure()
     if (!bridge || !reducer) return
     // Keep the environment used by a later Helper spawn in sync with the live
     // config; otherwise a crashed Helper would restart with stale values until
@@ -1006,6 +1057,42 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
         () => httpCtx.webServer.register({ kind: 'exact', path: COMPANION_DIAGNOSTICS_ENDPOINT, handler: companionApi.diagnostics }),
         'dsh-dafeiyu-jinrong: companion diagnostics',
       )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_STATUS_ENDPOINT, handler: analysisApi.status }),
+        'dsh-dafeiyu-jinrong: analysis status',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_STOCKS_ENDPOINT, handler: analysisApi.stocks }),
+        'dsh-dafeiyu-jinrong: analysis stocks',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_TASKS_ENDPOINT, handler: analysisApi.tasks }),
+        'dsh-dafeiyu-jinrong: analysis tasks',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_HISTORY_ENDPOINT, handler: analysisApi.history }),
+        'dsh-dafeiyu-jinrong: analysis history',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_REPORT_ENDPOINT, handler: analysisApi.report }),
+        'dsh-dafeiyu-jinrong: analysis report',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_ANALYZE_ENDPOINT, handler: analysisApi.analyze }),
+        'dsh-dafeiyu-jinrong: analysis trigger',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_MARKET_REVIEW_ENDPOINT, handler: analysisApi.marketReview }),
+        'dsh-dafeiyu-jinrong: analysis market review',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_CHAT_ENDPOINT, handler: analysisApi.chat }),
+        'dsh-dafeiyu-jinrong: analysis chat',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_DOCKER_ENDPOINT, handler: analysisApi.docker }),
+        'dsh-dafeiyu-jinrong: analysis docker',
+      )
       const assetRoutes = createAssetRoutes()
       if (assetRoutes) {
         httpCtx.effect(
@@ -1031,6 +1118,7 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
     unwatch()
     settings.dispose?.()
     balance.stop()
+    analysisService.stop()
     stopRuntime('dsh-host-stop')
   })
 }

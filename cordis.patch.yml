@@ -32,3 +32,10 @@
         weatherCity: ''
         weatherRefreshMinutes: 30
         idleTargets: '09:30 开盘, 15:30 收盘'
+        analysisEnabled: false
+        analysisBaseUrl: 'http://127.0.0.1:8000'
+        analysisSchedule: '18:00'
+        analysisReportType: detailed
+        analysisPetSummary: true
+        analysisContainer: daily_stock_analysis
+        analysisAuthCookie: ''

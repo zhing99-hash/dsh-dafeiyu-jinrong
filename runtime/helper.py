@@ -467,6 +467,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             self.weather_line = ""
             self.market_quote: dict[str, Any] | None = None
             self.market_indices: list[dict[str, Any]] | None = None
+            self.phase = ""
             self.idle_targets = parse_targets(None)
             self.countdown_target: datetime | None = None
             self.countdown_label = ""
@@ -572,6 +573,7 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
                     self.market_indices = [dict(item) for item in indices if isinstance(item, dict)]
                 else:
                     self.market_indices = None
+                self.phase = str(message.get("phase") or "")
                 self._measure_cache = None
                 previous_base_state = self.model.base_state
                 state = str(message.get("state", "IDLE"))
@@ -1352,6 +1354,8 @@ def run_visual(recorder: EventRecorder, snapshot_path: Path | None = None) -> in
             if len(self.tasks) >= 2 and self._bubble_visible():
                 return str(bindings.get("MULTI_TASK") or "tasks")
             message, _detail, state = self._active_status()
+            if self.phase == "analysis" and "analysis" in scenes:
+                return "analysis"
             if self.market_quote and "stock" in scenes:
                 return "stock"
             if self.market_indices and "market" in scenes:

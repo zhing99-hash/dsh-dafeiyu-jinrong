@@ -3,6 +3,23 @@
 > This is release history. For installation, use the [latest stable release](https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/releases/latest), not commands from older entries.
 > 上游历史见 [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)。
 
+## 0.6.0 · 2026-11-25
+
+### Added
+
+- **DSA 分析面板**：大肥鱼工坊新增「分析」Tab，连接可选的
+  [daily_stock_analysis](https://github.com/ZhuLinsen/daily_stock_analysis)
+  Docker/FastAPI 侧车；仪表盘展示自选股最新结论、评分、趋势、Markdown 报告和新闻。
+- **任务与历史**：批量/单只异步分析、任务进度、历史记录、完整报告、关联新闻；
+  面板只调用本地 DSA，不复制 DSA 的模型或数据源 Key。
+- **策略问股 / 大盘复盘**：DSA Agent 多轮问股（需 AGENT_MODE）和大盘复盘入口。
+- **DSH 定时**：工作日 `18:00`（可配置/留空关闭）由 DSH 触发养鱼自选股批量分析，
+  DSA 自身的 schedule 应关闭以避免重复推送；面板触发一律 `notify:false`。
+- **桌宠摘要**：分析完成后新增 `analysis` 场景，显示「今日分析 N 只 / 买入…」
+  和评分最高的两只股票；DSA 不可用时不影响原有行情/任务。
+- **连接设置**：DSA 地址、容器名、报告类型、认证 Cookie、桌宠摘要开关；
+  `analysisEnabled` 默认关闭，不把 DSA Python/依赖塞进插件包。
+
 ## 0.5.0 · 2026-11-12
 
 ### Added
