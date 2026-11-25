@@ -1,7 +1,7 @@
 {
   "name": "dsh-dafeiyu-jinrong",
-  "version": "0.6.0",
-  "description": "Desktop BigFish companion driven by DeepSeek Harness session events, with an editable bubble studio, action packs, IP weather, daily countdowns, named market indices, an optional daily_stock_analysis (DSA) AI report panel, market sentiment and meme battles.",
+  "version": "0.7.0",
+  "description": "Desktop BigFish companion driven by DeepSeek Harness session events, with an editable bubble studio, action packs, IP weather, daily countdowns, named market indices, an optional daily_stock_analysis (DSA) AI report panel, a five-ETF national-team share monitor, market sentiment and meme battles.",
   "author": "QCYTSN",
   "type": "module",
   "main": "src/index.js",

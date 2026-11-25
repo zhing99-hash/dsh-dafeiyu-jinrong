@@ -21,6 +21,8 @@ import { createCompanionApi } from './companion-api.js'
 import { createWeatherService } from './weather.js'
 import { createAnalysisService } from './analysis/service.js'
 import { createAnalysisHandlers } from './analysis/api.js'
+import { createFundflowService } from './fundflow/service.js'
+import { createFundflowHandlers } from './fundflow/api.js'
 import {
   CompanionMessageKind,
   CompanionState,
@@ -62,6 +64,8 @@ export const ANALYSIS_DOCKER_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/d
 export const ANALYSIS_SYNC_WATCHLIST_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/sync-watchlist'
 export const ANALYSIS_START_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/start'
 export const ANALYSIS_STOP_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/analysis/stop'
+export const FUNDFLOW_SERIES_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/fundflow/series'
+export const FUNDFLOW_REFRESH_ENDPOINT = '/plugins/dsh-dafeiyu-jinrong/fundflow/refresh'
 export { BALANCE_ENDPOINT }
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -597,6 +601,11 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
   })
   analysisService.start()
   const analysisApi = createAnalysisHandlers(analysisService, { logger })
+  const fundflowService = createFundflowService({
+    getConfig: () => settings.get(),
+    logger,
+  })
+  const fundflowApi = createFundflowHandlers(fundflowService)
   const pendingPreviews = new Map()
   let previewSeq = 0
   const balance = createBalanceMonitor({
@@ -1129,6 +1138,14 @@ function mountCompanion(ctx, config = {}, eventCtx = ctx, logger) {
       httpCtx.effect(
         () => httpCtx.webServer.register({ kind: 'exact', path: ANALYSIS_STOP_ENDPOINT, handler: analysisApi.stopDsa }),
         'dsh-dafeiyu-jinrong: analysis stop',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: FUNDFLOW_SERIES_ENDPOINT, handler: fundflowApi.series }),
+        'dsh-dafeiyu-jinrong: fundflow series',
+      )
+      httpCtx.effect(
+        () => httpCtx.webServer.register({ kind: 'exact', path: FUNDFLOW_REFRESH_ENDPOINT, handler: fundflowApi.refresh }),
+        'dsh-dafeiyu-jinrong: fundflow refresh',
       )
       const assetRoutes = createAssetRoutes()
       if (assetRoutes) {

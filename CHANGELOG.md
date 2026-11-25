@@ -3,6 +3,22 @@
 > This is release history. For installation, use the [latest stable release](https://github.com/zhing99-hash/dsh-dafeiyu-jinrong/releases/latest), not commands from older entries.
 > 上游历史见 [QCYTSN/dsh-dafeiyu](https://github.com/QCYTSN/dsh-dafeiyu)。
 
+## 0.7.0 · 2026-11-25
+
+### Added
+
+- **资金监控**：大肥鱼工坊「分析」仪表板顶部新增「资金监控」卡片，
+  固定跟踪 5 只核心宽基 ETF 的每日份额：
+  510300 沪深300、510050 上证50、159915 创业板、588000 科创50、510500 中证500。
+  数据来自 Tushare `fund_share`，单位统一为亿份，保留近 90 天。
+- **两条份额曲线**：合计份额绝对值曲线 + 5 只 ETF 首日归一化曲线；
+  附最新份额、日变动和明细表；原生 SVG，无外部图表 CDN。
+- **手动更新**：只有「更新数据」按钮会抓取；结果缓存到
+  `$DSH_HOME/dafeiyu/fundflow.json`，更新失败保留旧图。
+- **北向口径说明**：HKSCC 名义持有的北向 ETF 持仓自 2024-08 起停止公开披露，
+  面板明确标注近三个月不可得，不使用估算数据替代真实持仓。
+- 资金监控独立于 DSA：DSA 关闭或离线时仍可查看已缓存份额数据。
+
 ## 0.6.0 · 2026-11-25
 
 ### Added
