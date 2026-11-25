@@ -204,7 +204,7 @@ export function createAnalysisService({
       state: 'SUCCESS',
       phase: 'analysis',
       stage: 'AI 分析',
-      message: `今日分析 ${rows.length} 只`,
+      message: `今日分析 ${rows.length} 只 · 买${counts.buy} 观${counts.watch} 卖${counts.sell}`,
       detail: tops.join(' · '),
       analysis: lastSummary,
       __analysis: true,
